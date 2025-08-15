@@ -37,7 +37,7 @@ jobs:
           TF_VAR_oci_bucket_name: ${{ secrets.TF_VAR_OCI_BUCKET_NAME }}
           TF_VAR_ssh_public_key: ${{ secrets.TF_VAR_SSH_PUBLIC_KEY }}
           TF_VAR_oci_compartment_id: ${{ secrets.TF_VAR_OCI_COMPARTMENT_ID }}
-          TF_VAR_compartment_id: ${{ secrets.TF_VAR_OCI_COMPARTMENT_ID }}
+          TF_VAR_compartment_ocid: ${{ secrets.TF_VAR_OCI_COMPARTMENT_ID }}
         run: cd sre/common/terraform/ && terraform init
 
       - name: Terraform Validate
