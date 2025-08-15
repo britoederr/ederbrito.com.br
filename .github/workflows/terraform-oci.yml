@@ -1,0 +1,51 @@
+name: Terraform OCI Deployment
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  terraform:
+    name: Terraform
+    runs-on: ubuntu-latest
+    environment: prod
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.7.6
+
+      - name: Terraform Init
+        env:
+          TF_VAR_tenancy_ocid: ${{ secrets.TF_VAR_TENANCY_OCID }}
+          TF_VAR_user_ocid: ${{ secrets.TF_VAR_USER_OCID }}
+          TF_VAR_fingerprint: ${{ secrets.TF_VAR_FINGERPRINT }}
+          TF_VAR_private_key: ${{ secrets.TF_VAR_PRIVATE_KEY }}
+          TF_VAR_region: ${{ secrets.TF_VAR_REGION }}
+          TF_VAR_oci_bucket_name: ${{ secrets.TF_VAR_OCI_BUCKET_NAME }}
+          TF_VAR_ssh_public_key: ${{ secrets.TF_VAR_SSH_PUBLIC_KEY }}
+          TF_VAR_oci_compartment_id: ${{ secrets.TF_VAR_OCI_COMPARTMENT_ID }}
+          TF_VAR_compartment_id: ${{ secrets.TF_VAR_OCI_COMPARTMENT_ID }}
+        run: cd sre/common/terraform/ && terraform init
+
+      - name: Terraform Validate
+        run: cd sre/common/terraform/ && terraform validate
+
+      - name: Terraform Plan
+        id: plan
+        run: cd sre/common/terraform/ && terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        run: cd sre/common/terraform/ && terraform apply -auto-approve tfplan
