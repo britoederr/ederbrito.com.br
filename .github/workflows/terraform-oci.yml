@@ -1,12 +1,14 @@
-name: Terraform OCI Deployment
+name: Terraform for OKE Deployment
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
+  push:
+    branches:
+      - main
+    tags:
+      - "v*.*.*"
 
 env:
   TF_VAR_tenancy_ocid: ${{ secrets.TF_VAR_TENANCY_OCID }}
@@ -20,7 +22,7 @@ env:
   TF_VAR_compartment_ocid: ${{ secrets.TF_VAR_OCI_COMPARTMENT_ID }}
 
 jobs:
-  terraform:
+  terraform-preparation:
     name: Terraform
     runs-on: ubuntu-latest
     environment: prod
@@ -31,7 +33,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -44,9 +46,124 @@ jobs:
       - name: Terraform Validate
         run: cd sre/common/terraform/ && terraform validate
 
+      - name: Prepare SSL certs
+        run: |
+          echo "${{ secrets.SSL_PRIVATE_KEY }}" > sre/common/terraform/ssl.key
+          echo "${{ secrets.SSL_PUBLIC_CERT }}" > sre/common/terraform/ssl.crt
+          echo "${{ secrets.SSL_CA_CERT }}" > sre/common/terraform/ssl-ca.crt
+
       - name: Terraform Plan
         id: plan
-        run: cd sre/common/terraform/ && terraform plan -out=tfplan
+        run: cd sre/common/terraform/ && terraform plan -out=tfplan-${{ env.ENVIRONMENT }}-${{ github.ref_name }}
+      
+      - name: Upload Terraform Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ env.ENVIRONMENT }}-${{ github.ref_name }}
+          path: sre/common/terraform/tfplan-${{ env.ENVIRONMENT }}-${{ github.ref_name }}
+
+      - uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        env:
+          PLAN: "sre/common/terraform/tfplan-${{ env.ENVIRONMENT }}-${{ github.ref_name }}"
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // 1. Retrieve existing bot comments for the PR
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            })
+            const botComment = comments.find(comment => {
+              return comment.user.type === 'Bot' && comment.body.includes('Terraform Format and Style')
+            })
+
+            // 2. Prepare format of the comment
+            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+            <details><summary>Validation Output</summary>
+
+            \`\`\`\n
+            ${{ steps.validate.outputs.stdout }}
+            \`\`\`
+
+            </details>
+
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`\n
+            ${process.env.PLAN}
+            \`\`\`
+
+            </details>
+
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ env.tf_actions_working_dir }}\`, Workflow: \`${{ github.workflow }}\`*`;
+
+            // 3. If we have a comment, update it, otherwise create a new one
+            if (botComment) {
+              github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: output
+              })
+            } else {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: output
+              })
+            }
+
+  terraform-apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    environment: prod
+    needs: terraform-preparation
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.1.7
+
+      - name: Download Terraform Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ env.ENVIRONMENT }}-${{ github.ref_name }}
+
+      - name: Prepare SSL certs
+        run: |
+          echo "${{ secrets.SSL_PRIVATE_KEY }}" > sre/common/terraform/privkey.pem
+          echo "${{ secrets.SSL_PUBLIC_CERT }}" > sre/common/terraform/cert.pem
+          echo "${{ secrets.SSL_CA_CERT }}" > sre/common/terraform/chain.pem
 
       - name: Terraform Apply
-        run: cd sre/common/terraform/ && terraform apply -auto-approve tfplan
+        run: cd sre/common/terraform/ && terraform apply -auto-approve tfplan-${{ env.ENVIRONMENT }}-${{ github.ref_name }}
+
+      - name: Terraform Output
+        run: cd sre/common/terraform/ && terraform output -json > output.json
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: v1.30.0  # choose your kubectl version
+      
+      - name: Set kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          cp sre/commom/terraform/kubeconfig.yaml $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Apply Kubernetes for Istio Addons
+        run: |
+          cd sre/common/kubernetes/
+          kubectl apply -f .
