@@ -102,8 +102,8 @@ jobs:
 
       - name: Install OCI CLI
         run: |
-          curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash
-          export PATH=$PATH:/home/runner/bin/oci/bin  # adjust if needed
+          bash -c "$(curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh)" -- --accept-all-defaults
+          export PATH=$PATH:$HOME/bin
 
       - name: Terraform Init
         run: |
