@@ -71,7 +71,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tfplan
-          path: tfplan-${ENVIRONMENT}-${GITHUB_SHA}
+          path: sre/common/terraform/tfplan-${{ env.ENVIRONMENT }}-${{ github.sha }}
 
 
   terraform-apply:
