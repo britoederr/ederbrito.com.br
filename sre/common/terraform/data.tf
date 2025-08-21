@@ -26,12 +26,3 @@ resource "local_file" "kubeconfig" {
   content  = data.oci_containerengine_cluster_kube_config.oke_kubeconfig.content
   filename = "${path.module}/kubeconfig.yaml"
 }
-
-data "kubernetes_service" "istio_ingress" {
-  metadata {
-    name      = "istio-ingress"  # default name in Istio Helm
-    namespace = "istio-system"
-  }
-
-  provider = kubernetes.oke
-}
