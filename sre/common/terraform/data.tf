@@ -22,9 +22,9 @@ data "oci_containerengine_cluster_kube_config" "oke_kubeconfig" {
   cluster_id = oci_containerengine_cluster.oke_cluster.id
 }
 
-resource "local_file" "kubeconfig" {
+resource "local_sensitive_file" "kubeconfig" {
   content  = data.oci_containerengine_cluster_kube_config.oke_kubeconfig.content
-  filename = "${path.module}/kubeconfig.yaml"
+  filename = "${path.module}/kubeconfig"
 }
 
 data "kubernetes_service" "istio_ingress" {

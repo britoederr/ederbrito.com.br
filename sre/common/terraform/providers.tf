@@ -21,11 +21,11 @@ provider "oci" {
 
 provider "kubernetes" {
   alias       = "oke"
-  config_path = local_file.kubeconfig.filename
+  config_path = local_sensitive_file.kubeconfig.filename
 }
 
 provider "helm" {
   kubernetes = {
-    config_path = local_file.kubeconfig.filename
+    config_path = local_sensitive_file.kubeconfig.filename
   }
 }
