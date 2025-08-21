@@ -43,6 +43,7 @@ jobs:
       - name: Terraform Init
         run: |
           cd sre/common/terraform/
+          echo "$TF_VAR_private_key"
           echo "$TF_VAR_private_key" | sed 's/\\n/\n/g' > oci_api_key.pem
           chmod 600 oci_api_key.pem
           terraform init   -backend-config="tenancy_ocid=$OCI_TENANCY_OCID" \
