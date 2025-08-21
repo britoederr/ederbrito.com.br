@@ -65,7 +65,7 @@ jobs:
 
       - name: Terraform Plan
         id: plan
-        run: cd sre/common/terraform/ && terraform plan -out="./tfplan-${ENVIRONMENT}-${GITHUB_SHA}"
+        run: cd sre/common/terraform/ && terraform plan -out="tfplan-${ENVIRONMENT}-${GITHUB_SHA}"
       
       - name: Upload Terraform Plan
         uses: actions/upload-artifact@v4
