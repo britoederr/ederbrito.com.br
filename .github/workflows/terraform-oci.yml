@@ -20,6 +20,7 @@ env:
   TF_VAR_ssh_public_key: ${{ secrets.TF_VAR_SSH_PUBLIC_KEY }}
   TF_VAR_oci_compartment_id: ${{ secrets.TF_VAR_OCI_COMPARTMENT_ID }}
   TF_VAR_compartment_ocid: ${{ secrets.TF_VAR_OCI_COMPARTMENT_ID }}
+  ENVIRONMENT: ${{ vars.ENVIRONMENT }}
 
 jobs:
   terraform-preparation:
@@ -64,13 +65,13 @@ jobs:
 
       - name: Terraform Plan
         id: plan
-        run: cd sre/common/terraform/ && terraform plan -out="tfplan-${vars.ENVIRONMENT}-${GITHUB_SHA}"
+        run: cd sre/common/terraform/ && terraform plan -out="tfplan-${ENVIRONMENT}-${GITHUB_SHA}"
       
       - name: Upload Terraform Plan
         uses: actions/upload-artifact@v4
         with:
           name: tfplan
-          path: sre/common/terraform/tfplan-${vars.ENVIRONMENT}-${GITHUB_SHA}
+          path: sre/common/terraform/tfplan-${ENVIRONMENT}-${GITHUB_SHA}
 
 
   terraform-apply:
@@ -100,7 +101,7 @@ jobs:
           echo "${{ secrets.SSL_CA_CERT }}" > sre/common/terraform/chain.pem
 
       - name: Terraform Apply
-        run: cd sre/common/terraform/ && terraform apply -auto-approve tfplan-${vars.ENVIRONMENT}-${GITHUB_SHA}
+        run: cd sre/common/terraform/ && terraform apply -auto-approve tfplan-${ENVIRONMENT}-${GITHUB_SHA}
 
       - name: Terraform Output
         run: cd sre/common/terraform/ && terraform output -json > output.json
