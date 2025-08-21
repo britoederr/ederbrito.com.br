@@ -21,13 +21,6 @@ env:
   TF_VAR_oci_compartment_id: ${{ secrets.TF_VAR_OCI_COMPARTMENT_ID }}
   TF_VAR_compartment_ocid: ${{ secrets.TF_VAR_OCI_COMPARTMENT_ID }}
 
-
-  TF_BACKEND_config_tenancy_ocid: ${{ secrets.TF_VAR_tenancy_ocid }}
-  TF_BACKEND_config_user_ocid: ${{ secrets.TF_VAR_user_ocid }}
-  TF_BACKEND_config_fingerprint: ${{ secrets.TF_VAR_fingerprint }}
-  TF_BACKEND_config_private_key: ${{ secrets.TF_VAR_private_key }}
-  TF_BACKEND_config_region: ${{ secrets.TF_VAR_region }}
-
 jobs:
   terraform-preparation:
     name: Terraform
@@ -47,15 +40,16 @@ jobs:
         with:
           terraform_version: 1.12.2
 
-      - name: Setup OCI backend config
-        run: |
-          mkdir -p ~/.oci
-          echo "${TF_BACKEND_config_private_key}" > ~/.oci/oci_api_key.pem
-          chmod 600 ~/.oci/oci_api_key.pem
-          export TF_BACKEND_config_private_key_path=~/.oci/oci_api_key.pem
-
       - name: Terraform Init
-        run: cd sre/common/terraform/ && terraform init
+        run: |
+          cd sre/common/terraform/
+          echo $TF_VAR_private_key > oci_api_key.pem && chmod 600 oci_api_key.pem
+          terraform init   -backend-config="tenancy_ocid=$OCI_TENANCY_OCID" \
+            -backend-config="user_ocid=$TF_VAR_user_ocid" \
+            -backend-config="fingerprint=$TF_VAR_fingerprint" \
+            -backend-config="private_key_path=oci_api_key.pem" \
+            -backend-config="region=$TF_VAR_region"
+
 
       - name: Terraform Validate
         run: cd sre/common/terraform/ && terraform validate
