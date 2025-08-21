@@ -128,7 +128,7 @@ jobs:
           oci --version
           cp tfplan-${ENVIRONMENT}-${GITHUB_SHA} sre/common/terraform/
           cd sre/common/terraform/
-          export OCI_CLI_KEY_FILE=sre/common/terraform/oci_api_key.pem
+          export OCI_CLI_KEY_FILE=oci_api_key.pem
           terraform apply -auto-approve tfplan-${ENVIRONMENT}-${GITHUB_SHA}
 
       - name: Terraform Output
