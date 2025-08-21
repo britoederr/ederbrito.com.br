@@ -100,8 +100,23 @@ jobs:
           echo "${{ secrets.SSL_PUBLIC_CERT }}" > sre/common/terraform/cert.pem
           echo "${{ secrets.SSL_CA_CERT }}" > sre/common/terraform/chain.pem
 
+      - name: Terraform Init
+        run: |
+          cd sre/common/terraform/
+          echo "$TF_VAR_private_key"
+          echo "$TF_VAR_private_key" | sed 's/\\n/\n/g' > oci_api_key.pem
+          chmod 600 oci_api_key.pem
+          terraform init   -backend-config="tenancy_ocid=$OCI_TENANCY_OCID" \
+            -backend-config="user_ocid=$TF_VAR_user_ocid" \
+            -backend-config="fingerprint=$TF_VAR_fingerprint" \
+            -backend-config="private_key_path=oci_api_key.pem" \
+            -backend-config="region=$TF_VAR_region"
+
       - name: Terraform Apply
-        run: cd sre/common/terraform/ && terraform apply -auto-approve tfplan-${ENVIRONMENT}-${GITHUB_SHA}
+        run: |
+          cp tfplan-${ENVIRONMENT}-${GITHUB_SHA} sre/common/terraform/
+          cd sre/common/terraform/
+          terraform apply -auto-approve tfplan-${ENVIRONMENT}-${GITHUB_SHA}
 
       - name: Terraform Output
         run: cd sre/common/terraform/ && terraform output -json > output.json
