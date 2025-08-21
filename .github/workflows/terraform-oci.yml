@@ -100,14 +100,6 @@ jobs:
           echo "${{ secrets.SSL_PUBLIC_CERT }}" > sre/common/terraform/cert.pem
           echo "${{ secrets.SSL_CA_CERT }}" > sre/common/terraform/chain.pem
 
-      - name: Install OCI CLI
-        run: |
-          bash -c "$(curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh)" -- --accept-all-defaults
-          export PATH=$PATH:$HOME/bin
-          echo $PATH
-          which oci
-          oci --version
-
       - name: Terraform Init
         run: |
           cd sre/common/terraform/
@@ -122,6 +114,12 @@ jobs:
 
       - name: Terraform Apply
         run: |
+          bash -c "$(curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh)" -- --accept-all-defaults
+          echo "$HOME/bin" >> $GITHUB_PATH
+          export PATH=$PATH:$HOME/bin
+          echo $PATH
+          which oci
+          oci --version
           cp tfplan-${ENVIRONMENT}-${GITHUB_SHA} sre/common/terraform/
           cd sre/common/terraform/
           terraform apply -auto-approve tfplan-${ENVIRONMENT}-${GITHUB_SHA}
