@@ -1,23 +1,9 @@
-terraform {
-  required_providers {
-    oci = {
-      source  = "oracle/oci"
-      version = ">=5.0.0"
-    }
-  }
-}
-
-provider "oci" {
-  region = "sa-saopaulo-1"
-}
-
-
 # -------------------------------
 # OKE Cluster
 # -------------------------------
 resource "oci_containerengine_cluster" "oke_cluster" {
-  name           = "oke-ederbrito-cluster"
-  compartment_id = var.compartment_ocid
+  name               = "${local.prefix_name}-cluster"
+  compartment_id     = var.compartment_ocid
   kubernetes_version = "v1.33.1"
 
   # Avoid enhanced cluster costs
@@ -43,11 +29,11 @@ resource "oci_containerengine_cluster" "oke_cluster" {
 # Node Pool
 # -------------------------------
 resource "oci_containerengine_node_pool" "oke_k8s_node_pool" {
-  name           = "oke-ederbrito-k8s-pool"
-  compartment_id = var.compartment_ocid
-  cluster_id     = oci_containerengine_cluster.oke_cluster.id
+  name               = "${local.prefix_name}-k8s-pool"
+  compartment_id     = var.compartment_ocid
+  cluster_id         = oci_containerengine_cluster.oke_cluster.id
   kubernetes_version = "v1.33.1"
-  node_shape     = "VM.Standard.A1.Flex"
+  node_shape         = "VM.Standard.A1.Flex"
 
   node_config_details {
     size = 2
@@ -56,7 +42,7 @@ resource "oci_containerengine_node_pool" "oke_k8s_node_pool" {
       subnet_id           = oci_core_subnet.node_subnet.id
     }
     node_pool_pod_network_option_details {
-      cni_type = "OCI_VCN_IP_NATIVE"
+      cni_type       = "OCI_VCN_IP_NATIVE"
       pod_subnet_ids = [oci_core_subnet.node_subnet.id]
     }
   }
