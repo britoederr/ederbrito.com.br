@@ -115,7 +115,6 @@ jobs:
       - name: Terraform Apply
         run: |
           bash -c "$(curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh)" -- --accept-all-defaults
-          echo "$HOME/bin" >> $GITHUB_PATH
           export PATH=$PATH:$HOME/bin
           echo $PATH
           which oci
