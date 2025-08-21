@@ -102,7 +102,7 @@ jobs:
 
       - name: Install OCI CLI
         run: |
-          bash -c "$(curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh)" --accept-all-defaults
+          bash -c "$(curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh)" -- --accept-all-defaults
           export PATH=$PATH:$HOME/bin
           echo $PATH
           which oci
