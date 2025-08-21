@@ -65,7 +65,7 @@ jobs:
 
       - name: Terraform Plan
         id: plan
-        run: cd sre/common/terraform/ && terraform plan -out="${GITHUB_WORKSPACE}/tfplan-${ENVIRONMENT}-${GITHUB_SHA}"
+        run: cd sre/common/terraform/ && terraform plan -out=tfplan-${ENVIRONMENT}-${GITHUB_SHA}
       
       - name: Upload Terraform Plan
         uses: actions/upload-artifact@v4
@@ -101,10 +101,7 @@ jobs:
           echo "${{ secrets.SSL_CA_CERT }}" > sre/common/terraform/chain.pem
 
       - name: Terraform Apply
-        run: |
-          cd sre/common/terraform
-          cp ${GITHUB_WORKSPACE}/tfplan-${ENVIRONMENT}-${GITHUB_SHA} .
-          terraform apply -auto-approve tfplan-${ENVIRONMENT}-${GITHUB_SHA}
+        run: cd sre/common/terraform/ && terraform apply -auto-approve tfplan-${ENVIRONMENT}-${GITHUB_SHA}
 
       - name: Terraform Output
         run: cd sre/common/terraform/ && terraform output -json > output.json
