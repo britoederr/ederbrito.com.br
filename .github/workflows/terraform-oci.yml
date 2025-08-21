@@ -64,71 +64,14 @@ jobs:
 
       - name: Terraform Plan
         id: plan
-        run: cd sre/common/terraform/ && terraform plan -out=tfplan-${{ env.ENVIRONMENT }}-${{ github.ref_name }}
+        run: cd sre/common/terraform/ && terraform plan -out="tfplan-${ENVIRONMENT}-${GITHUB_SHA}"
       
       - name: Upload Terraform Plan
         uses: actions/upload-artifact@v4
         with:
-          name: tfplan-${{ env.ENVIRONMENT }}-${{ github.ref_name }}
-          path: sre/common/terraform/tfplan-${{ env.ENVIRONMENT }}-${{ github.ref_name }}
+          name: tfplan
+          path: sre/common/terraform/-out="tfplan-${ENVIRONMENT}-${GITHUB_SHA}"
 
-      - uses: actions/github-script@v7
-        if: github.event_name == 'pull_request'
-        env:
-          PLAN: "sre/common/terraform/tfplan-${{ env.ENVIRONMENT }}-${{ github.ref_name }}"
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            // 1. Retrieve existing bot comments for the PR
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            })
-            const botComment = comments.find(comment => {
-              return comment.user.type === 'Bot' && comment.body.includes('Terraform Format and Style')
-            })
-
-            // 2. Prepare format of the comment
-            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
-            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
-            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
-            <details><summary>Validation Output</summary>
-
-            \`\`\`\n
-            ${{ steps.validate.outputs.stdout }}
-            \`\`\`
-
-            </details>
-
-            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
-
-            <details><summary>Show Plan</summary>
-
-            \`\`\`\n
-            ${process.env.PLAN}
-            \`\`\`
-
-            </details>
-
-            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ env.tf_actions_working_dir }}\`, Workflow: \`${{ github.workflow }}\`*`;
-
-            // 3. If we have a comment, update it, otherwise create a new one
-            if (botComment) {
-              github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: botComment.id,
-                body: output
-              })
-            } else {
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: output
-              })
-            }
 
   terraform-apply:
     name: Terraform Apply
@@ -148,7 +91,7 @@ jobs:
       - name: Download Terraform Plan
         uses: actions/download-artifact@v4
         with:
-          name: tfplan-${{ env.ENVIRONMENT }}-${{ github.ref_name }}
+          name: tfplan
 
       - name: Prepare SSL certs
         run: |
@@ -157,7 +100,7 @@ jobs:
           echo "${{ secrets.SSL_CA_CERT }}" > sre/common/terraform/chain.pem
 
       - name: Terraform Apply
-        run: cd sre/common/terraform/ && terraform apply -auto-approve tfplan-${{ env.ENVIRONMENT }}-${{ github.ref_name }}
+        run: cd sre/common/terraform/ && terraform apply -auto-approve tfplan-${ENVIRONMENT}-${GITHUB_SHA}
 
       - name: Terraform Output
         run: cd sre/common/terraform/ && terraform output -json > output.json
