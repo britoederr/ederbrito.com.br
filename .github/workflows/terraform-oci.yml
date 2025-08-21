@@ -47,6 +47,13 @@ jobs:
         with:
           terraform_version: 1.12.2
 
+      - name: Setup OCI backend config
+        run: |
+          mkdir -p ~/.oci
+          echo "${TF_BACKEND_config_private_key}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+          export TF_BACKEND_config_private_key_path=~/.oci/oci_api_key.pem
+
       - name: Terraform Init
         run: cd sre/common/terraform/ && terraform init
 
