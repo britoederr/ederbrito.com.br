@@ -1,0 +1,17 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ssl-certificate
+  namespace: istio-system
+spec:
+  secretName: ssl-certificate-secret
+  issuerRef:
+    name: ssl-certificate-letsencrypt
+    kind: ClusterIssuer
+  dnsNames:
+  - ederbrito.com.br
+  - grafana.ederbrito.com.br
+  - jaeger.ederbrito.com.br
+  - kiali.ederbrito.com.br
+  - loki.ederbrito.com.br
+  - prometheus.ederbrito.com.br
