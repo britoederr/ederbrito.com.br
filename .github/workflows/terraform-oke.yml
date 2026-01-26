@@ -1,0 +1,288 @@
+name: Oracle Kubernetes Engine Setup
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - sre/common/terraform/k8s/**
+      - sre/common/terraform/dns/**
+  push:
+    branches:
+      - main
+    tags:
+      - "v*.*.*"
+    paths:
+      - sre/common/terraform/k8s/**
+      - sre/common/terraform/dns/**
+
+env:
+  TF_VAR_tenancy_ocid: ${{ secrets.TF_VAR_TENANCY_OCID }}
+  TF_VAR_user_ocid: ${{ secrets.TF_VAR_USER_OCID }}
+  TF_VAR_fingerprint: ${{ secrets.TF_VAR_FINGERPRINT }}
+  TF_VAR_private_key: ${{ secrets.TF_VAR_PRIVATE_KEY }}
+  TF_VAR_oci_bucket_name: ${{ secrets.TF_VAR_OCI_BUCKET_NAME }}
+  TF_VAR_ssh_public_key: ${{ secrets.TF_VAR_SSH_PUBLIC_KEY }}
+  TF_VAR_oci_compartment_id: ${{ secrets.TF_VAR_OCI_COMPARTMENT_ID }}
+  TF_VAR_compartment_ocid: ${{ secrets.TF_VAR_OCI_COMPARTMENT_ID }}
+  TF_VAR_region: "sa-saopaulo-1"
+  TF_VAR_project_name: "ederbrito"
+  TF_VAR_domain_name: "ederbrito.com.br"
+  ENVIRONMENT: ${{ vars.ENVIRONMENT }}
+
+jobs:
+  terraform-k8s-preparation:
+    name: Terraform Preparation Kubernetes Cluster 
+    runs-on: ubuntu-latest
+    environment: prod
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.12.2
+
+      - name: Terraform Init
+        run: |
+          cd sre/common/terraform/k8s
+          echo "$TF_VAR_private_key" | sed 's/\\n/\n/g' > oci_api_key.pem
+          chmod 600 oci_api_key.pem
+          terraform init   -backend-config="tenancy_ocid=$TF_VAR_tenancy_ocid" \
+            -backend-config="bucket=terraform-state" \
+            -backend-config="namespace=grop2geoxikg" \
+            -backend-config="key=ederbrito/common/oke" \
+            -backend-config="user_ocid=$TF_VAR_user_ocid" \
+            -backend-config="fingerprint=$TF_VAR_fingerprint" \
+            -backend-config="private_key_path=oci_api_key.pem" \
+            -backend-config="region=$TF_VAR_region"
+
+
+      - name: Terraform Validate
+        run: cd sre/common/terraform/k8s && terraform validate
+
+      - name: Terraform Plan Kubernetes
+        id: plan-k8s
+        run: |
+          cd sre/common/terraform/k8s
+          terraform plan -out="tfplan-k8s-${ENVIRONMENT}-${GITHUB_SHA}" -lock=false
+
+      - name: Upload Terraform Plan Kubernetes
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-k8s
+          path: sre/common/terraform/k8s/tfplan-k8s-${{ env.ENVIRONMENT }}-${{ github.sha }}
+
+
+  terraform-k8s-apply:
+    name: Terraform Apply Kubernetes Cluster
+    runs-on: ubuntu-latest
+    environment: prod
+    needs: terraform-k8s-preparation
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.12.2
+
+      - name: Download Terraform Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-k8s
+
+
+      - name: Terraform Init
+        run: |
+          cd sre/common/terraform/k8s
+          echo "$TF_VAR_private_key" | sed 's/\\n/\n/g' > oci_api_key.pem
+          chmod 600 oci_api_key.pem
+          terraform init -backend-config="tenancy_ocid=$TF_VAR_tenancy_ocid" \
+            -backend-config="bucket=terraform-state" \
+            -backend-config="namespace=grop2geoxikg" \
+            -backend-config="key=ederbrito/common/oke" \
+            -backend-config="user_ocid=$TF_VAR_user_ocid" \
+            -backend-config="fingerprint=$TF_VAR_fingerprint" \
+            -backend-config="private_key_path=oci_api_key.pem" \
+            -backend-config="region=$TF_VAR_region"
+
+      - name: Terraform Apply
+        run: |
+          cp tfplan-k8s-${ENVIRONMENT}-${GITHUB_SHA} sre/common/terraform/k8s
+          cd sre/common/terraform/k8s
+          terraform apply -auto-approve -lock=false tfplan-k8s-${ENVIRONMENT}-${GITHUB_SHA}
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: v1.33.1
+      
+      - name: Istio + Cert-Manager Setup
+        env:
+          OCI_CLI_AUTH: api_key
+          OCI_CLI_USER: ${{ secrets.TF_VAR_user_ocid }}
+          OCI_CLI_TENANCY: ${{ secrets.TF_VAR_tenancy_ocid }}
+          OCI_CLI_FINGERPRINT: ${{ secrets.TF_VAR_fingerprint }}
+          OCI_CLI_REGION: ${{ secrets.TF_VAR_region }}
+        run: |
+          bash -c "$(curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh)" -- --accept-all-defaults
+          export PATH=$PATH:$HOME/bin
+          oci --version
+          echo "$TF_VAR_private_key" | sed 's/\\n/\n/g' > oci_api_key.pem
+          chmod 600 oci_api_key.pem
+          export OCI_CLI_KEY_FILE="$GITHUB_WORKSPACE/oci_api_key.pem"
+
+          CLUSTER_OCID=$(oci ce cluster list \
+            --compartment-id $TF_VAR_compartment_ocid \
+            --query 'data[?"lifecycle-state"==`ACTIVE` && name==`oke-ederbrito-cluster`].id | [0]' \
+            --raw-output)
+
+          echo $CLUSTER_OCID
+          # Fetch kubeconfig
+          KUBECONFIG_FILE="$HOME/.kube/config"
+          mkdir -p $HOME/.kube
+          oci ce cluster create-kubeconfig \
+            --cluster-id $CLUSTER_OCID \
+            --file $KUBECONFIG_FILE \
+            --region $TF_VAR_region \
+            --token-version 2.0.0 \
+            --kube-endpoint PUBLIC_ENDPOINT
+
+          helm repo add istio https://istio-release.storage.googleapis.com/charts
+          helm repo update
+          helm upgrade --install istio-base istio/base -n istio-system --create-namespace --version 1.28.3
+          helm upgrade --install istiod istio/istiod -n istio-system --wait --version 1.28.3
+          helm upgrade --install istio-ingressgateway istio/gateway --version 1.28.3 -n istio-system --wait --set "service.annotations.service\.beta\.kubernetes\.io/oci-load-balancer-shape=10Mbps"
+          
+          helm repo add jetstack https://charts.jetstack.io --force-update
+          helm upgrade --install \
+            cert-manager jetstack/cert-manager \
+            --namespace cert-manager \
+            --create-namespace \
+            --version v1.19.2 \
+            --set crds.enabled=true
+
+          kubectl apply -f sre/common/kubernetes/
+
+  terraform-dns-preparation:
+    name: Terraform Preparation for DNS Creation 
+    runs-on: ubuntu-latest
+    needs: terraform-k8s-apply
+    environment: prod
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout repository DNS
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform DNS
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.12.2
+
+      - name: Terraform Init DNS
+        run: |
+          cd sre/common/terraform/dns
+          echo "$TF_VAR_private_key" | sed 's/\\n/\n/g' > oci_api_key.pem
+          chmod 600 oci_api_key.pem
+          terraform init   -backend-config="tenancy_ocid=$TF_VAR_tenancy_ocid" \
+            -backend-config="bucket=terraform-state" \
+            -backend-config="namespace=grop2geoxikg" \
+            -backend-config="key=ederbrito/common/dns" \
+            -backend-config="user_ocid=$TF_VAR_user_ocid" \
+            -backend-config="fingerprint=$TF_VAR_fingerprint" \
+            -backend-config="private_key_path=oci_api_key.pem" \
+            -backend-config="region=$TF_VAR_region"
+
+      - name: Terraform Validate DNS
+        run: cd sre/common/terraform/dns && terraform validate
+
+      - name: Terraform Plan Kubernetes DNS
+        id: plan-dns
+        env:
+          OCI_CLI_AUTH: api_key
+          OCI_CLI_USER: ${{ secrets.TF_VAR_user_ocid }}
+          OCI_CLI_TENANCY: ${{ secrets.TF_VAR_tenancy_ocid }}
+          OCI_CLI_FINGERPRINT: ${{ secrets.TF_VAR_fingerprint }}
+          OCI_CLI_REGION: ${{ secrets.TF_VAR_region }}
+        run: |
+          bash -c "$(curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh)" -- --accept-all-defaults
+          export PATH=$PATH:$HOME/bin
+          oci --version
+          echo "$TF_VAR_private_key" | sed 's/\\n/\n/g' > oci_api_key.pem
+          chmod 600 oci_api_key.pem
+          export OCI_CLI_KEY_FILE="$GITHUB_WORKSPACE/oci_api_key.pem"
+
+          cd sre/common/terraform/dns
+          terraform plan -out="tfplan-dns-${ENVIRONMENT}-${GITHUB_SHA}"
+
+      - name: Upload Terraform Plan Kubernetes DNS
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-dns
+          path: sre/common/terraform/dns/tfplan-dns-${{ env.ENVIRONMENT }}-${{ github.sha }}
+
+
+  terraform-dns-apply:
+    name: Terraform Apply DNS
+    runs-on: ubuntu-latest
+    environment: prod
+    needs: terraform-dns-preparation
+
+    steps:
+      - name: Checkout repository DNS
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform DNS
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.12.2
+
+      - name: Download Terraform Plan DNS
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-dns
+
+      - name: Terraform Init DNS
+        run: |
+          cd sre/common/terraform/dns
+          echo "$TF_VAR_private_key" | sed 's/\\n/\n/g' > oci_api_key.pem
+          chmod 600 oci_api_key.pem
+          terraform init -backend-config="tenancy_ocid=$TF_VAR_tenancy_ocid" \
+            -backend-config="bucket=terraform-state" \
+            -backend-config="namespace=grop2geoxikg" \
+            -backend-config="key=ederbrito/common/dns" \
+            -backend-config="user_ocid=$TF_VAR_user_ocid" \
+            -backend-config="fingerprint=$TF_VAR_fingerprint" \
+            -backend-config="private_key_path=oci_api_key.pem" \
+            -backend-config="region=$TF_VAR_region"
+
+      - name: Terraform Apply DNS
+        env:
+          OCI_CLI_AUTH: api_key
+          OCI_CLI_USER: ${{ secrets.TF_VAR_user_ocid }}
+          OCI_CLI_TENANCY: ${{ secrets.TF_VAR_tenancy_ocid }}
+          OCI_CLI_FINGERPRINT: ${{ secrets.TF_VAR_fingerprint }}
+          OCI_CLI_REGION: ${{ secrets.TF_VAR_region }}
+        run: |
+          bash -c "$(curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh)" -- --accept-all-defaults
+          export PATH=$PATH:$HOME/bin
+          oci --version
+          echo "$TF_VAR_private_key" | sed 's/\\n/\n/g' > oci_api_key.pem
+          chmod 600 oci_api_key.pem
+          export OCI_CLI_KEY_FILE="$GITHUB_WORKSPACE/oci_api_key.pem"
+
+          cp tfplan-dns-${ENVIRONMENT}-${GITHUB_SHA} sre/common/terraform/dns
+          cd sre/common/terraform/dns
+          terraform apply -auto-approve tfplan-dns-${ENVIRONMENT}-${GITHUB_SHA}
