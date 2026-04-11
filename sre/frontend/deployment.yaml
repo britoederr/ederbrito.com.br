@@ -24,6 +24,9 @@ spec:
         - name: frontend
           # Image tag is overwritten by `kubectl set image` in the deploy pipeline
           image: britoederr/ederbrito-frontend:latest
+          imagePullPolicy: IfNotPresent
+          imagePullSecrets:
+            - name: dockerhub-secret
           ports:
             - containerPort: 3000
           env:

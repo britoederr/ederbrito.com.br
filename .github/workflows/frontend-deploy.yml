@@ -163,6 +163,15 @@ jobs:
             --kube-endpoint PUBLIC_ENDPOINT
             
           kubectl apply -f sre/frontend/namespace.yaml
+
+          # Create or refresh the Docker Hub pull secret
+          kubectl create secret docker-registry dockerhub-secret \
+            --docker-username=${{ secrets.DOCKERHUB_USERNAME }} \
+            --docker-password=${{ secrets.DOCKERHUB_TOKEN }} \
+            --docker-server=https://index.docker.io/v1/ \
+            --namespace=${{ env.KUBE_NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
           kubectl apply -f sre/frontend/deployment.yaml
           kubectl apply -f sre/frontend/service.yaml
           kubectl apply -f sre/frontend/virtualservice.yaml
