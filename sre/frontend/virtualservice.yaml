@@ -1,0 +1,16 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: frontend
+  namespace: ederbrito
+spec:
+  hosts:
+    - ederbrito.com.br
+  gateways:
+    - istio-system/ederbrito-com-br-gateway
+  http:
+    - route:
+        - destination:
+            host: frontend.ederbrito.svc.cluster.local
+            port:
+              number: 3000

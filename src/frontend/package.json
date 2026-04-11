@@ -1,0 +1,49 @@
+{
+  "name": "@once-ui-system/magic-portfolio",
+  "version": "2.3.0",
+  "scripts": {
+    "dev": "next dev",
+    "export": "next export",
+    "build": "next build",
+    "biome-write": "npx @biomejs/biome format --write .",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "@mdx-js/loader": "^3.1.0",
+    "@next/mdx": "^16.0.10",
+    "@once-ui-system/core": "latest",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.56.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.57.0",
+    "@opentelemetry/resources": "^1.30.0",
+    "@opentelemetry/sdk-node": "^0.57.0",
+    "@opentelemetry/semantic-conventions": "^1.30.0",
+    "classnames": "^2.5.1",
+    "cookie": "^1.0.2",
+    "gray-matter": "^4.0.3",
+    "lint-staged": "^16.1.5",
+    "next": "^16.0.10",
+    "next-mdx-remote": "^6.0.0",
+    "pino": "^9.6.0",
+    "prom-client": "^15.1.3",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.3",
+    "react-icons": "^5.5.0",
+    "sass": "^1.86.3",
+    "transliteration": "^2.3.5"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/cookie": "^0.6.0",
+    "@types/node": "^20.17.30",
+    "@types/react": "^19.2.4",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^9.25.0",
+    "typescript": "^5.8.3",
+    "tzdata": "^1.0.44"
+  }
+}

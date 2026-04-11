@@ -1,0 +1,179 @@
+name: Frontend Build, Scan & Deploy
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - src/frontend/**
+  push:
+    branches:
+      - main
+    tags:
+      - "v*.*.*"
+    paths:
+      - src/frontend/**
+
+env:
+  IMAGE_NAME: britoederr/ederbrito.com.br
+  KUBE_NAMESPACE: ederbrito
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Type-check and lint
+  # ---------------------------------------------------------------------------
+  test:
+    name: Test (tsc + lint)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: src/frontend
+
+      - name: TypeScript type check
+        run: npx tsc --noEmit
+        working-directory: src/frontend
+
+      - name: Lint
+        run: npm run lint
+        working-directory: src/frontend
+
+  # ---------------------------------------------------------------------------
+  # 2. Build Docker image, scan with Trivy, push to Docker Hub (main/tag only)
+  # ---------------------------------------------------------------------------
+  docker-build-scan:
+    name: Docker Build & Scan
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: src/frontend
+          push: false
+          load: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+            ${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: CRITICAL
+
+      - name: Login to Docker Hub
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push image to Docker Hub
+        if: github.event_name == 'push'
+        uses: docker/build-push-action@v6
+        with:
+          context: src/frontend
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+            ${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ---------------------------------------------------------------------------
+  # 3. Deploy to OKE (push/tag only — manual approval via environment: prod)
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy to OKE
+    runs-on: ubuntu-latest
+    needs: docker-build-scan
+    if: github.event_name == 'push'
+    environment: prod
+
+    env:
+      TF_VAR_tenancy_ocid: ${{ secrets.TF_VAR_TENANCY_OCID }}
+      TF_VAR_user_ocid: ${{ secrets.TF_VAR_USER_OCID }}
+      TF_VAR_fingerprint: ${{ secrets.TF_VAR_FINGERPRINT }}
+      TF_VAR_private_key: ${{ secrets.TF_VAR_PRIVATE_KEY }}
+      TF_VAR_compartment_ocid: ${{ secrets.TF_VAR_OCI_COMPARTMENT_ID }}
+      TF_VAR_region: "sa-saopaulo-1"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: v1.33.1
+
+      - name: Install OCI CLI and configure kubeconfig
+        env:
+          OCI_CLI_AUTH: api_key
+          OCI_CLI_USER: ${{ secrets.TF_VAR_USER_OCID }}
+          OCI_CLI_TENANCY: ${{ secrets.TF_VAR_TENANCY_OCID }}
+          OCI_CLI_FINGERPRINT: ${{ secrets.TF_VAR_FINGERPRINT }}
+          OCI_CLI_REGION: ${{ secrets.TF_VAR_REGION }}
+        run: |
+          bash -c "$(curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh)" -- --accept-all-defaults
+          export PATH=$PATH:$HOME/bin
+
+          echo "$TF_VAR_private_key" | sed 's/\\n/\n/g' > oci_api_key.pem
+          chmod 600 oci_api_key.pem
+          export OCI_CLI_KEY_FILE="$GITHUB_WORKSPACE/oci_api_key.pem"
+
+          CLUSTER_OCID=$(oci ce cluster list \
+            --compartment-id $TF_VAR_compartment_ocid \
+            --query 'data[?"lifecycle-state"==`ACTIVE` && name==`oke-ederbrito-cluster`].id | [0]' \
+            --raw-output)
+
+          mkdir -p $HOME/.kube
+          oci ce cluster create-kubeconfig \
+            --cluster-id $CLUSTER_OCID \
+            --file $HOME/.kube/config \
+            --region $TF_VAR_region \
+            --token-version 2.0.0 \
+            --kube-endpoint PUBLIC_ENDPOINT
+
+      - name: Apply Kubernetes manifests
+        run: |
+          kubectl apply -f sre/frontend/namespace.yaml
+          kubectl apply -f sre/frontend/deployment.yaml
+          kubectl apply -f sre/frontend/service.yaml
+          kubectl apply -f sre/frontend/virtualservice.yaml
+
+      - name: Update deployment image
+        run: |
+          kubectl set image deployment/frontend \
+            frontend=${{ env.IMAGE_NAME }}:sha-${{ github.sha }} \
+            -n ${{ env.KUBE_NAMESPACE }}
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/frontend \
+            -n ${{ env.KUBE_NAMESPACE }} \
+            --timeout=5m
