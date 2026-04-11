@@ -66,7 +66,7 @@ const microservices = [
   },
 ];
 
-const MicroservicesDropdown = () => {
+const MicroservicesDropdown = ({ showLabel = true }: { showLabel?: boolean }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -84,7 +84,7 @@ const MicroservicesDropdown = () => {
     <div ref={ref} style={{ position: "relative" }}>
       <ToggleButton
         prefixIcon="globe"
-        label="Microservices"
+        label={showLabel ? "Microservices" : undefined}
         selected={open}
         onClick={() => setOpen((o) => !o)}
       />
@@ -97,8 +97,8 @@ const MicroservicesDropdown = () => {
           shadow="l"
           padding="8"
           gap="2"
+          className={styles.dropdown}
           style={{
-            top: "calc(100% + 8px)",
             left: "50%",
             transform: "translateX(-50%)",
             zIndex: 100,
@@ -146,7 +146,7 @@ const playAreaLinks = [
   { label: "Kiali", href: "https://kiali.ederbrito.com.br", icon: "openLink" },
 ];
 
-const PlayAreaDropdown = () => {
+const PlayAreaDropdown = ({ showLabel = true }: { showLabel?: boolean }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -164,7 +164,7 @@ const PlayAreaDropdown = () => {
     <div ref={ref} style={{ position: "relative" }}>
       <ToggleButton
         prefixIcon="rocket"
-        label="Play Area"
+        label={showLabel ? "Play Area" : undefined}
         selected={open}
         onClick={() => setOpen((o) => !o)}
       />
@@ -177,8 +177,8 @@ const PlayAreaDropdown = () => {
           shadow="l"
           padding="8"
           gap="2"
+          className={styles.dropdown}
           style={{
-            top: "calc(100% + 8px)",
             left: "50%",
             transform: "translateX(-50%)",
             zIndex: 100,
@@ -331,8 +331,14 @@ export const Header = () => {
               <Row s={{ hide: true }}>
                 <MicroservicesDropdown />
               </Row>
+              <Row hide s={{ hide: false }}>
+                <MicroservicesDropdown showLabel={false} />
+              </Row>
               <Row s={{ hide: true }}>
                 <PlayAreaDropdown />
+              </Row>
+              <Row hide s={{ hide: false }}>
+                <PlayAreaDropdown showLabel={false} />
               </Row>
               {display.themeSwitcher && (
                 <>

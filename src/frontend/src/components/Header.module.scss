@@ -1,5 +1,15 @@
 @use "./breakpoints.scss" as breakpoints;
 
+.dropdown {
+    top: calc(100% + 8px);
+    bottom: auto;
+
+    @media (max-width: breakpoints.$s) {
+        top: auto;
+        bottom: calc(100% + 8px);
+    }
+}
+
 .mask {
     pointer-events: none;
     backdrop-filter: blur(0.5rem);
