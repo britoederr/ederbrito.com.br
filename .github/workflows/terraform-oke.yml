@@ -158,11 +158,13 @@ jobs:
             --kube-endpoint PUBLIC_ENDPOINT
 
           helm repo add istio https://istio-release.storage.googleapis.com/charts
+          helm repo add kube-state-metrics https://kubernetes.github.io/kube-state-metrics
           helm repo update
           helm upgrade --install istio-base istio/base -n istio-system --create-namespace --version 1.28.3
           helm upgrade --install istiod istio/istiod -n istio-system --wait --version 1.28.3
           helm upgrade --install istio-ingressgateway istio/gateway --version 1.28.3 -n istio-system --wait --set "service.annotations.service\.beta\.kubernetes\.io/oci-load-balancer-shape=10Mbps"
-          
+          helm upgrade --install kube-state-metrics kube-state-metrics/kube-state-metrics -n kube-system
+
           helm repo add jetstack https://charts.jetstack.io --force-update
           helm upgrade --install \
             cert-manager jetstack/cert-manager \

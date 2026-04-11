@@ -35,7 +35,7 @@ spec:
             - name: OTEL_SERVICE_NAME
               value: ederbrito-frontend
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://jaeger-collector.ederbrito.svc.cluster.local:4318/v1/traces"
+              value: "http://jaeger-collector.istio-system.svc.cluster.local:4318/v1/traces"
             - name: LOG_LEVEL
               value: info
           resources:
