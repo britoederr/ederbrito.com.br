@@ -161,9 +161,7 @@ jobs:
             --region $TF_VAR_region \
             --token-version 2.0.0 \
             --kube-endpoint PUBLIC_ENDPOINT
-
-      - name: Apply Kubernetes manifests
-        run: |
+            
           kubectl apply -f sre/frontend/namespace.yaml
           kubectl apply -f sre/frontend/deployment.yaml
           kubectl apply -f sre/frontend/service.yaml
