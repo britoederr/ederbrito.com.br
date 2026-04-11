@@ -20,13 +20,13 @@ spec:
         prometheus.io/port: "3000"
         prometheus.io/path: "/api/metrics"
     spec:
+      imagePullSecrets:
+        - name: dockerhub-secret
       containers:
         - name: frontend
           # Image tag is overwritten by `kubectl set image` in the deploy pipeline
           image: britoederr/ederbrito-frontend:latest
-          imagePullPolicy: IfNotPresent
-          imagePullSecrets:
-            - name: dockerhub-secret
+          imagePullPolicy: Always
           ports:
             - containerPort: 3000
           env:
