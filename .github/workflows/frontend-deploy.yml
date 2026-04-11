@@ -92,12 +92,17 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Push image to Docker Hub
+      - name: Set up QEMU (for ARM64 cross-compilation)
+        if: github.event_name == 'push'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Push multi-arch image to Docker Hub
         if: github.event_name == 'push'
         uses: docker/build-push-action@v6
         with:
           context: src/frontend
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
             ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
             ${{ env.IMAGE_NAME }}:latest
@@ -161,7 +166,7 @@ jobs:
             --region $TF_VAR_region \
             --token-version 2.0.0 \
             --kube-endpoint PUBLIC_ENDPOINT
-            
+
           kubectl apply -f sre/frontend/namespace.yaml
 
           # Create or refresh the Docker Hub pull secret

@@ -25,7 +25,7 @@ spec:
       containers:
         - name: frontend
           # Image tag is overwritten by `kubectl set image` in the deploy pipeline
-          image: britoederr/ederbrito-frontend:latest
+          image: britoederr/ederbrito.com.br:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
