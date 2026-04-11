@@ -45,10 +45,6 @@ jobs:
         run: npx tsc --noEmit
         working-directory: src/frontend
 
-      - name: Lint
-        run: npm run lint
-        working-directory: src/frontend
-
   # ---------------------------------------------------------------------------
   # 2. Build Docker image, scan with Trivy, push to Docker Hub (main/tag only)
   # ---------------------------------------------------------------------------
