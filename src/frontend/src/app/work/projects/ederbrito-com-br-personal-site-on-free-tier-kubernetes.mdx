@@ -1,0 +1,91 @@
+---
+title: "Personal Site on Always-Free Kubernetes (OCI + Istio + Full Observability)"
+publishedAt: "2025-04-01"
+summary: "Designed and operated my own personal portfolio site on a production-grade, always-free Kubernetes cluster on Oracle Cloud, with Istio service mesh, TLS via cert-manager, and a full observability stack (Prometheus, Grafana, Loki, Jaeger, Kiali), all automated with Terraform and GitHub Actions."
+images:
+  - "/images/projects/project-01/ederbrito-portfolio-01.png"
+  - "/images/projects/project-01/ederbrito-portfolio-02.png"
+  - "/images/projects/project-01/ederbrito-portfolio-03.png"
+
+---
+
+## Overview
+
+This project is the platform behind `ederbrito.com.br`: a fully self-operated Kubernetes environment running on OCI's Always Free tier, at zero infrastructure cost.
+
+The goals were practical and intentional: deploy a real, production-grade platform using the same tools I work with daily at Avalara (Kubernetes, Istio, Terraform, Prometheus/Grafana/Loki), while proving it can be done sustainably on free-tier compute.
+
+---
+
+## Architecture
+
+The platform runs on **Oracle Kubernetes Engine (OKE)** using two `VM.Standard.A1.Flex` ARM instances (2 OCPU / 12 GB each),  Oracle's always-free compute tier. Network architecture follows a hub-and-spoke VCN design with public subnets for the API and load balancer, and private subnets for worker nodes with NAT and service gateways.
+
+Traffic flows:
+
+1. DNS (`ederbrito.com.br` + subdomains) → OCI Load Balancer (Istio ingress gateway)
+2. Istio `Gateway` → VirtualService → Resources' pods
+3. TLS terminated at the gateway via cert-manager + Let's Encrypt (HTTP-01)
+4. Observability subdomains (`grafana.`, `prometheus.`, `jaeger.`, `loki.`, `kiali.`) served through the same gateway
+
+---
+
+## Infrastructure as Code
+
+All infrastructure is provisioned with **Terraform**:
+
+- **VCN and networking** — subnets, NAT gateway, service gateway, security lists
+- **OKE cluster** — BASIC cluster with ARM node pool, VCN-native pod networking
+- **OCI DNS** — A records for apex and all observability subdomains, dynamically resolved from the Istio ingress load balancer IP using Terraform's Kubernetes provider
+
+Remote state is stored in **OCI Object Storage**. The two Terraform stacks (cluster and DNS) are decoupled so DNS can be updated independently without touching the cluster.
+
+---
+
+## CI/CD
+
+A **GitHub Actions** pipeline automates the full provisioning lifecycle:
+
+1. `terraform plan` and `terraform apply` for the OKE cluster and networking
+2. OCI CLI authenticates, fetches kubeconfig, and bootstraps Helm releases (Istio 1.28.3, cert-manager v1.19.2)
+3. `kubectl apply` deploys the Kubernetes manifests (gateway, certificate, issuer, observability stack)
+4. A second Terraform run applies DNS changes, reading the live ingress LB IP from the cluster
+
+The pipeline triggers on changes to paths under `sre/common/terraform/` so infrastructure-only PRs can be reviewed and validated before apply.
+
+---
+
+## Observability Stack
+
+The cluster runs a full observability suite, accessible via dedicated subdomains and protected by the same TLS setup:
+
+- **Prometheus** — Metrics collection and alerting
+- **Grafana** — Dashboards and visualization
+- **Loki** — Log aggregation
+- **Jaeger** — Distributed tracing
+- **Kiali** — Istio service mesh topology and health
+
+This mirrors the production observability patterns I design and operate at Avalara, applied here at a personal scale.
+
+---
+
+## Key Technical Decisions
+
+**Why OCI Always Free?** The `VM.Standard.A1.Flex` shape provides enough compute for a real multi-node cluster without cost. This removes any incentive to cut corners on the platform layer,  the goal was a legitimate production setup, not a dev sandbox.
+
+**Why Istio?** Istio gives TLS termination, traffic management, and observability integration (Kiali, Jaeger) at the mesh level. For a single-service site it's over-engineered by design,  the intent is to keep skills sharp on a live system.
+
+**Why Terraform + GitHub Actions instead of a managed PaaS?** Full control over the infrastructure lifecycle, a real GitOps-style workflow, and a meaningful artifact to demonstrate end-to-end IaC ownership.
+
+---
+
+## Technologies Used
+
+- **Cloud:** Oracle Cloud Infrastructure (OCI),  Always Free tier
+- **Kubernetes:** OKE (BASIC), ARM nodes (`VM.Standard.A1.Flex`)
+- **Service Mesh:** Istio 1.28.3 (Helm)
+- **TLS:** cert-manager v1.19.2, Let's Encrypt
+- **IaC:** Terraform (OCI + Kubernetes providers), OCI Object Storage backend
+- **CI/CD:** GitHub Actions
+- **Observability:** Prometheus, Grafana, Loki, Jaeger, Kiali
+- **DNS:** OCI DNS (managed via Terraform)
