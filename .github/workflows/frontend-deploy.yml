@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - src/frontend/**
+      - sre/frontend/**
+      - .github/workflows/frontend-deploy.yml
   push:
     branches:
       - main
@@ -13,6 +15,8 @@ on:
       - "v*.*.*"
     paths:
       - src/frontend/**
+      - sre/frontend/**
+      - .github/workflows/frontend-deploy.yml
 
 env:
   IMAGE_NAME: britoederr/ederbrito.com.br
