@@ -7,7 +7,7 @@ const person: Person = {
   role: "Lead Site Reliability Engineer",
   avatar: "/images/avatar.jpg",
   email: "britoederr@gmail.com",
-  phone: "5561957427200",
+  phone: "5561995742720",
   location: "America/Sao_Paulo",
   languages: ["English", "Portuguese"],
 };
