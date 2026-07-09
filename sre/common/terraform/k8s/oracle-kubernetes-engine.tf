@@ -53,7 +53,14 @@ resource "oci_containerengine_node_pool" "oke_k8s_node_pool" {
 
   node_source_details {
     source_type = "IMAGE"
-    image_id    = data.oci_core_images.oracle_linux_images.images[0].id
+    image_id    = local.oke_node_image_id
+  }
+
+  lifecycle {
+    precondition {
+      condition     = local.oke_node_image_id != null
+      error_message = "No Oracle Linux 8 OKE worker image found for ${var.kubernetes_version}. Check oci ce node-pool-options get --node-pool-option-id all."
+    }
   }
 
   ssh_public_key = var.ssh_public_key
