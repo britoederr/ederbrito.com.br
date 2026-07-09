@@ -196,7 +196,7 @@ kubectl apply -f sre/common/kubernetes/
 
 ### 7. Configure DNS
 
-DNS Terraform reads the Cilium Gateway LoadBalancer Service IP (`ederbrito-gateway` in `kube-system`).
+DNS Terraform reads the Cilium Gateway LoadBalancer Service IP (`cilium-gateway-ederbrito-gateway` in `kube-system`).
 
 ```bash
 cd sre/common/terraform/dns
@@ -234,7 +234,7 @@ kubectl get pods -n observability
 kubectl get pods -n cert-manager
 kubectl get pods -n ederbrito
 kubectl get gateway -A
-kubectl get svc -n kube-system ederbrito-gateway   # check for external IP
+kubectl get svc -n kube-system cilium-gateway-ederbrito-gateway   # check for external IP
 ```
 
 ## Observability Stack
@@ -354,7 +354,7 @@ OCI DNS costs ~$0.50/month. To eliminate that, use an external DNS provider (Clo
 
 1. Get the load balancer IP after Cilium Gateway is ready:
    ```bash
-   kubectl get svc -n kube-system ederbrito-gateway \
+   kubectl get svc -n kube-system cilium-gateway-ederbrito-gateway \
      -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
    ```
 2. Create an A record for `ederbrito.com.br` (and observability subdomains) pointing to that IP

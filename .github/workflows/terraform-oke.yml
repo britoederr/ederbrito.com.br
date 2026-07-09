@@ -262,21 +262,22 @@ jobs:
       - name: Wait for Cilium Gateway LoadBalancer IP
         run: |
           set -euo pipefail
-          echo "Waiting for Service kube-system/ederbrito-gateway to get an EXTERNAL-IP..."
+          SVC_NAME="cilium-gateway-ederbrito-gateway"
+          echo "Waiting for Service kube-system/${SVC_NAME} to get an EXTERNAL-IP..."
           for attempt in $(seq 1 60); do
-            IP=$(kubectl get svc -n kube-system ederbrito-gateway \
+            IP=$(kubectl get svc -n kube-system "${SVC_NAME}" \
               -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
             if [[ -n "${IP}" ]]; then
               echo "Gateway LoadBalancer IP: ${IP}"
               exit 0
             fi
             echo "Attempt ${attempt}/60: no EXTERNAL-IP yet"
-            kubectl get svc -n kube-system ederbrito-gateway || true
+            kubectl get svc -n kube-system "${SVC_NAME}" || true
             kubectl get gateway -n kube-system ederbrito-gateway -o wide || true
             sleep 15
           done
-          echo "Timed out waiting for ederbrito-gateway LoadBalancer IP"
-          kubectl describe svc -n kube-system ederbrito-gateway || true
+          echo "Timed out waiting for ${SVC_NAME} LoadBalancer IP"
+          kubectl describe svc -n kube-system "${SVC_NAME}" || true
           kubectl describe gateway -n kube-system ederbrito-gateway || true
           exit 1
 

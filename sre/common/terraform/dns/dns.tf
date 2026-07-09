@@ -9,7 +9,7 @@ locals {
 check "cilium_gateway_has_lb_ip" {
   assert {
     condition     = local.gateway_lb_ip != null && local.gateway_lb_ip != ""
-    error_message = "Service kube-system/ederbrito-gateway has no LoadBalancer IP yet. Wait for OCI LB provisioning (often 3-5 minutes), then re-run DNS plan. Check: kubectl get svc -n kube-system ederbrito-gateway"
+    error_message = "Service kube-system/cilium-gateway-ederbrito-gateway has no LoadBalancer IP yet. Wait for OCI LB provisioning (often 3-5 minutes), then re-run DNS plan. Check: kubectl get svc -n kube-system cilium-gateway-ederbrito-gateway"
   }
 }
 
