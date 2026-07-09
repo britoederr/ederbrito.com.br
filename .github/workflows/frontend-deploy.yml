@@ -19,7 +19,8 @@ on:
       - .github/workflows/frontend-deploy.yml
 
 env:
-  IMAGE_NAME: britoederr/ederbrito.com.br
+  # Fully qualified registry path required by CRI-O short-name enforcement (OKE 1.34+).
+  IMAGE_NAME: docker.io/britoederr/ederbrito.com.br
   KUBE_NAMESPACE: ederbrito
   KUBECTL_VERSION: v1.36.1
 
