@@ -1,0 +1,16 @@
+---
+description: Kubernetes / Cilium / cert-manager manifest conventions
+globs: sre/**/*.yaml
+alwaysApply: false
+---
+
+# Kubernetes manifests
+
+- Ingress: Gateway API (`Gateway` + `HTTPRoute`) via Cilium — no Istio VirtualServices.
+- Observability namespace: `observability` (Prometheus, Grafana, Loki, Jaeger).
+- Hubble UI exposed at `hubble.ederbrito.com.br`; no Kiali.
+- TLS: cert-manager Certificate in `kube-system` (or gateway ns) + HTTP-01 via Cilium ingress class.
+- Frontend namespace: `ederbrito` — no sidecar injection labels.
+- Do not pin production image SHAs in Deployment YAML; CI runs `kubectl set image`.
+- Keep resource requests/limits modest for Always Free (2× A1.Flex).
+- Prefer fully qualified image names (registry/path:tag).

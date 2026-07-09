@@ -13,12 +13,8 @@ data "oci_core_services" "all_oci_services" {
   }
 }
 
-# Retrieve Oracle Linux image for OKE node pool
-data "oci_core_images" "oracle_linux_images" {
-  compartment_id           = var.compartment_ocid
-  operating_system         = "Oracle Linux"
-  operating_system_version = "8"
-  shape                    = "VM.Standard.A1.Flex"
-  sort_by                  = "TIMECREATED"
-  sort_order               = "DESC"
+# OKE worker images are not listed by oci_core_images; use node-pool options.
+data "oci_containerengine_node_pool_option" "oke_node_pool_option" {
+  node_pool_option_id = "all"
+  compartment_id      = var.compartment_ocid
 }

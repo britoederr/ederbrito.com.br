@@ -1,6 +1,6 @@
 # Infrastructure — ederbrito.com.br
 
-Terraform and Kubernetes configuration for running the portfolio on OCI's Always Free tier. Covers the OKE cluster, networking, DNS, service mesh, observability stack, and the frontend Kubernetes deployment.
+Terraform and Kubernetes configuration for running the portfolio on OCI's Always Free tier. Covers the OKE cluster, networking, DNS, Cilium/Hubble, observability stack, and the frontend Kubernetes deployment.
 
 ## Table of Contents
 
@@ -23,23 +23,24 @@ Terraform and Kubernetes configuration for running the portfolio on OCI's Always
 ```
 sre/
 ├── frontend/               # Kubernetes manifests for the Next.js app
-│   ├── namespace.yaml      # ederbrito namespace (Istio injection enabled)
+│   ├── namespace.yaml
 │   ├── deployment.yaml     # App deployment (image tag set by CI)
 │   ├── service.yaml        # ClusterIP service on port 3000
-│   └── virtualservice.yaml # Istio routing for ederbrito.com.br
+│   └── httproute.yaml      # Gateway API route for ederbrito.com.br
 └── common/
     ├── terraform/
     │   ├── k8s/            # OKE cluster, VCN, subnets, node pool
     │   └── dns/            # OCI DNS zone and A records
-    └── kubernetes/         # Observability stack + Istio gateway config
-        ├── ingressgateway.yaml
+    └── kubernetes/         # Platform + observability
+        ├── namespace.yaml
+        ├── gateway.yaml
+        ├── httproutes-observability.yaml
         ├── certificate.yaml
         ├── certissuer.yaml
         ├── prometheus.yaml
         ├── grafana.yaml
         ├── jaeger.yaml
-        ├── loki.yaml
-        └── kiali.yaml
+        └── loki.yaml
 ```
 
 ## Architecture
@@ -49,25 +50,31 @@ sre/
 - **Provider**: Oracle Cloud Infrastructure (OCI) — Always Free tier
 - **Region**: São Paulo (`sa-saopaulo-1`)
 - **Engine**: Oracle Kubernetes Engine (OKE), BASIC_CLUSTER type (free control plane)
+- **Kubernetes**: `v1.36.1`
 - **Nodes**: 2× `VM.Standard.A1.Flex` — ARM64, 2 OCPUs, 12GB RAM, 50GB boot volume each
+- **CNI**: Cluster created with Flannel; CI replaces with exclusive **Cilium** + **Hubble**
+
+> Changing CNI or jumping major Kubernetes versions on Always Free typically requires **cluster recreate**, then re-bootstrap of Cilium/cert-manager/manifests.
 
 ### Networking
 
 | Subnet | CIDR | Type | Purpose |
 |--------|------|------|---------|
 | API Endpoint | 10.0.1.0/24 | Public | OKE control plane |
-| Load Balancer | 10.0.2.0/24 | Public | Istio ingress gateway |
+| Load Balancer | 10.0.2.0/24 | Public | Cilium Gateway LB |
 | Worker Nodes | 10.0.3.0/24 | Private | Application workloads |
 
 The worker node subnet has no inbound public route. Outbound internet access goes through a NAT Gateway. A Service Gateway allows private nodes to reach OCI services without public internet.
 
-### Service Mesh
+### CNI and ingress
 
-Istio 1.28 handles all ingress, mTLS between services, and exposes observability metrics. An OCI Load Balancer (10Mbps shape, free tier) fronts the Istio ingress gateway.
+Cilium owns pod networking (after Flannel removal), kube-proxy replacement, and Gateway API ingress. Hubble Relay/UI provide network flow visibility. An OCI Load Balancer (10Mbps shape, free tier) fronts the Cilium Gateway Service.
+
+Istio and Kiali are **not** used.
 
 ### TLS
 
-cert-manager 1.19 issues and renews certificates automatically via Let's Encrypt. Certificates are provisioned per-subdomain through the `ClusterIssuer` defined in `common/kubernetes/certissuer.yaml`.
+cert-manager 1.19 issues and renews certificates automatically via Let's Encrypt. HTTP-01 challenges use Gateway API (`gatewayHTTPRoute` solver) against the Cilium Gateway.
 
 ## Prerequisites
 
@@ -75,7 +82,7 @@ cert-manager 1.19 issues and renews certificates automatically via Let's Encrypt
 |------|---------|
 | Terraform | >= 1.12.2 |
 | OCI CLI | latest, configured |
-| kubectl | >= 1.34.1 |
+| kubectl | >= 1.36.1 |
 | Helm | >= 3.0 |
 
 ### OCI Account Setup
@@ -140,7 +147,56 @@ oci ce cluster create-kubeconfig \
 kubectl get nodes
 ```
 
-### 4. Configure DNS
+### 4. Install Gateway API CRDs, Cilium, Hubble
+
+```bash
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.3.0/standard-install.yaml
+
+helm repo add cilium https://helm.cilium.io/
+helm repo update
+
+# Remove Flannel so Cilium owns CNI exclusively
+kubectl -n kube-system delete daemonset kube-flannel-ds --ignore-not-found
+kubectl -n kube-system delete configmap kube-flannel-cfg --ignore-not-found
+
+helm upgrade --install cilium cilium/cilium \
+  --namespace kube-system \
+  --version 1.17.6 \
+  --set operator.replicas=1 \
+  --set ipam.mode=kubernetes \
+  --set tunnelProtocol=vxlan \
+  --set kubeProxyReplacement=true \
+  --set gatewayAPI.enabled=true \
+  --set hubble.enabled=true \
+  --set hubble.relay.enabled=true \
+  --set hubble.ui.enabled=true \
+  --wait --timeout 15m
+```
+
+### 5. Install cert-manager
+
+```bash
+helm repo add jetstack https://charts.jetstack.io --force-update
+helm repo update
+
+helm upgrade --install cert-manager jetstack/cert-manager \
+  --namespace cert-manager \
+  --create-namespace \
+  --version v1.19.2 \
+  --set crds.enabled=true \
+  --set config.enableGatewayAPI=true \
+  --wait
+```
+
+### 6. Deploy the platform / observability stack
+
+```bash
+kubectl apply -f sre/common/kubernetes/
+```
+
+### 7. Configure DNS
+
+DNS Terraform reads the Cilium Gateway LoadBalancer Service IP (`ederbrito-gateway` in `kube-system`).
 
 ```bash
 cd sre/common/terraform/dns
@@ -161,42 +217,6 @@ terraform apply
 
 > To avoid the DNS zone cost, skip this step and use an external provider — see [Making It 100% Free](#making-it-100-free).
 
-### 5. Install Istio
-
-```bash
-helm repo add istio https://istio-release.storage.googleapis.com/charts
-helm repo update
-
-helm upgrade --install istio-base istio/base \
-  -n istio-system --create-namespace --version 1.28.3
-
-helm upgrade --install istiod istio/istiod \
-  -n istio-system --wait --version 1.28.3
-
-helm upgrade --install istio-ingressgateway istio/gateway \
-  -n istio-system --wait --version 1.28.3 \
-  --set "service.annotations.service\.beta\.kubernetes\.io/oci-load-balancer-shape=10Mbps"
-```
-
-### 6. Install cert-manager
-
-```bash
-helm repo add jetstack https://charts.jetstack.io --force-update
-helm repo update
-
-helm upgrade --install cert-manager jetstack/cert-manager \
-  --namespace cert-manager \
-  --create-namespace \
-  --version v1.19.2 \
-  --set crds.enabled=true
-```
-
-### 7. Deploy the observability stack
-
-```bash
-kubectl apply -f sre/common/kubernetes/
-```
-
 ### 8. Deploy the frontend
 
 ```bash
@@ -209,23 +229,25 @@ See [Frontend Deployment](#frontend-deployment) for image pull secret setup and 
 
 ```bash
 kubectl get nodes
-kubectl get pods -n istio-system
+kubectl get pods -n kube-system -l k8s-app=cilium
+kubectl get pods -n observability
 kubectl get pods -n cert-manager
 kubectl get pods -n ederbrito
-kubectl get svc -n istio-system istio-ingressgateway   # check for external IP
+kubectl get gateway -A
+kubectl get svc -n kube-system ederbrito-gateway   # check for external IP
 ```
 
 ## Observability Stack
 
-All tools are accessible via HTTPS through the Istio ingress gateway.
+All tools are accessible via HTTPS through the Cilium Gateway.
 
 | Tool | URL | Purpose |
 |------|-----|---------|
 | Prometheus | `prometheus.ederbrito.com.br` | Metrics collection, alerting rules |
-| Grafana | `grafana.ederbrito.com.br` | Dashboards (Kubernetes, Istio, app metrics) |
+| Grafana | `grafana.ederbrito.com.br` | Dashboards (Kubernetes, app metrics) |
 | Jaeger | `jaeger.ederbrito.com.br` | Distributed tracing (OTLP ingest) |
 | Loki | `loki.ederbrito.com.br` | Log aggregation |
-| Kiali | `kiali.ederbrito.com.br` | Service mesh topology and traffic flow |
+| Hubble | `hubble.ederbrito.com.br` | Cilium network flow visibility |
 
 Prometheus discovers application pods via annotations. The frontend pod sets:
 
@@ -235,7 +257,7 @@ prometheus.io/port: "3000"
 prometheus.io/path: "/api/metrics"
 ```
 
-Prometheus also scrapes the Kubernetes API server, nodes, pods, services, and Istio mesh metrics.
+Observability workloads run in the `observability` namespace. Hubble UI/Relay run in `kube-system`.
 
 > Default credentials for each tool may need to be configured. Check the relevant manifest in `sre/common/kubernetes/`.
 
@@ -266,16 +288,20 @@ kubectl set image deployment/frontend \
   -n ederbrito
 ```
 
-The `virtualservice.yaml` routes all traffic for `ederbrito.com.br` to `frontend.ederbrito.svc.cluster.local:3000` through the `ederbrito-com-br-gateway` defined in `sre/common/kubernetes/ingressgateway.yaml`.
+The `httproute.yaml` routes traffic for `ederbrito.com.br` to `frontend.ederbrito.svc.cluster.local:3000` through the `ederbrito-gateway` Gateway in `kube-system`.
 
 ## CI/CD Pipeline
 
-The GitHub Actions workflow automates the full deployment.
+Two GitHub Actions workflows:
+
+| Workflow | Role |
+|----------|------|
+| `terraform-oke.yml` | Terraform plan/apply OKE + DNS; bootstrap Cilium/Hubble, cert-manager, platform manifests |
+| `frontend-deploy.yml` | `tsc` + Biome + Next build → Docker/Trivy → deploy to OKE |
 
 **Triggers**:
-- Pull requests → Terraform validate
-- Push to `main` → deploy infrastructure + app
-- Tags (`v*.*.*`) → versioned release
+- Pull requests → Terraform validate/plan only (no apply); frontend test/build/scan
+- Push to `main` / tags (`v*.*.*`) → apply + deploy
 
 **Required GitHub Secrets**:
 
@@ -288,8 +314,9 @@ The GitHub Actions workflow automates the full deployment.
 | `TF_VAR_OCI_BUCKET_NAME` | Object Storage bucket for Terraform state |
 | `TF_VAR_OCI_COMPARTMENT_ID` | OCI compartment OCID |
 | `TF_VAR_SSH_PUBLIC_KEY` | SSH public key for node access |
+| `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` | Frontend image push/pull |
 
-The pipeline builds the Docker image, pushes to `britoederr/ederbrito.com.br` on Docker Hub, then deploys via `kubectl set image`.
+The frontend pipeline builds a multi-arch image, pushes to `britoederr/ederbrito.com.br` on Docker Hub, then deploys via `kubectl set image`.
 
 ## Configuration Reference
 
@@ -300,7 +327,7 @@ The pipeline builds the Docker image, pushes to `britoederr/ederbrito.com.br` on
 | `compartment_ocid` | Yes | — | OCI compartment OCID |
 | `ssh_public_key` | Yes | — | SSH public key for node access |
 | `project_name` | Yes | — | Resource name prefix |
-| `kubernetes_version` | No | `v1.34.1` | Kubernetes version |
+| `kubernetes_version` | No | `v1.36.1` | Kubernetes version |
 | `region` | Yes | — | OCI region |
 
 ### DNS module (`sre/common/terraform/dns/`)
@@ -325,12 +352,12 @@ The Object Storage bucket must exist before `terraform init`. Create it via OCI 
 
 OCI DNS costs ~$0.50/month. To eliminate that, use an external DNS provider (Cloudflare free tier, Registro.br, etc.):
 
-1. Get the load balancer IP after installing Istio:
+1. Get the load balancer IP after Cilium Gateway is ready:
    ```bash
-   kubectl get svc -n istio-system istio-ingressgateway \
+   kubectl get svc -n kube-system ederbrito-gateway \
      -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
    ```
-2. Create an A record for `ederbrito.com.br` (and any subdomains) pointing to that IP in your DNS provider
+2. Create an A record for `ederbrito.com.br` (and observability subdomains) pointing to that IP
 3. Skip the `sre/common/terraform/dns` module entirely
 
 ## Cost Breakdown
@@ -383,20 +410,26 @@ oci ce cluster create-kubeconfig \
   --kube-endpoint PUBLIC_ENDPOINT
 ```
 
-**Istio ingress gateway stuck in `<pending>`**
+**Cilium Gateway LB stuck in `<pending>`**
 - OCI load balancer provisioning takes 3-5 minutes
 - Check security list rules allow ports 80 and 443 on the load balancer subnet
 - Verify the load balancer subnet has a route to the Internet Gateway
+- Confirm Gateway API CRDs and `gatewayAPI.enabled=true` on the Cilium Helm release
+
+**Pods stuck after Flannel → Cilium cutover**
+- Restart nodes or recreate the node pool if CNI conflists are stale
+- Check `kubectl -n kube-system get pods -l k8s-app=cilium`
 
 **DNS not resolving**
-- Confirm the A record points to the correct load balancer IP
+- Confirm the A record points to the Cilium Gateway LB IP
 - Wait for TTL expiry (default: 300s)
 - Re-run `terraform apply` in the DNS module if using OCI DNS
 
 **cert-manager not issuing certificates**
-- DNS must be propagated before ACME HTTP-01 or DNS-01 challenges can complete
+- DNS must be propagated before ACME HTTP-01 challenges can complete
 - Check logs: `kubectl logs -n cert-manager -l app=cert-manager`
 - Check `CertificateRequest` and `Order` resources for error messages
+- Ensure cert-manager has Gateway API support enabled
 
 **Node shows `NotReady`**
 ```bash
@@ -417,3 +450,4 @@ Most common cause: missing `dockerhub-secret` in the `ederbrito` namespace. See 
 - **Not for production**: Single region, single AZ, no automated failover or backups. Suitable for personal projects and learning environments.
 - **Load balancer shape**: 10Mbps is used to stay within free tier limits. Upgrade the shape annotation if you need more throughput (this will incur cost).
 - **Trial period**: The 30-day $300 trial credit expires. Switch to Pay-As-You-Go before it does — Always Free resources remain free indefinitely on PAYG accounts.
+- **AI agents**: See root [`AGENTS.md`](../AGENTS.md) and `.cursor/rules/` for edit boundaries.

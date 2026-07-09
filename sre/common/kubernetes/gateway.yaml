@@ -1,0 +1,68 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: ederbrito-gateway
+  namespace: kube-system
+  annotations:
+    cert-manager.io/cluster-issuer: ssl-certificate-letsencrypt
+    service.beta.kubernetes.io/oci-load-balancer-shape: "10Mbps"
+spec:
+  gatewayClassName: cilium
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      hostname: "*.ederbrito.com.br"
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: http-apex
+      protocol: HTTP
+      port: 80
+      hostname: ederbrito.com.br
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: "*.ederbrito.com.br"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: ssl-certificate-secret
+            kind: Secret
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: https-apex
+      protocol: HTTPS
+      port: 443
+      hostname: ederbrito.com.br
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: ssl-certificate-secret
+            kind: Secret
+      allowedRoutes:
+        namespaces:
+          from: All
+---
+# Redirect HTTP → HTTPS for apex and subdomains
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: http-to-https-redirect
+  namespace: kube-system
+spec:
+  parentRefs:
+    - name: ederbrito-gateway
+      sectionName: http
+    - name: ederbrito-gateway
+      sectionName: http-apex
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301

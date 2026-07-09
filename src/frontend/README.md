@@ -95,10 +95,10 @@ Manifests are in [`sre/frontend/`](../../sre/frontend/):
 
 | File | Purpose |
 |------|---------|
-| `namespace.yaml` | `ederbrito` namespace with Istio sidecar injection enabled |
+| `namespace.yaml` | `ederbrito` namespace |
 | `deployment.yaml` | Single replica; image tag overwritten by CI via `kubectl set image` |
 | `service.yaml` | ClusterIP service on port 3000 |
-| `virtualservice.yaml` | Istio VirtualService routing `ederbrito.com.br` to the frontend |
+| `httproute.yaml` | Gateway API HTTPRoute routing `ederbrito.com.br` to the frontend |
 
 Apply all manifests:
 

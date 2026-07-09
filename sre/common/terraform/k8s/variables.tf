@@ -21,7 +21,7 @@ variable "project_name" {
 variable "kubernetes_version" {
   type        = string
   description = "The version of the Kubernetes cluster."
-  default     = "v1.34.1"
+  default     = "v1.36.1"
 }
 
 variable "region" {

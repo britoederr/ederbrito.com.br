@@ -1,0 +1,13 @@
+---
+description: Global repo guardrails for ederbrito.com.br
+alwaysApply: true
+---
+
+# Repo guardrails
+
+- Read `AGENTS.md` first for path ownership; do not paste full READMEs into context.
+- Never commit secrets (`.env`, `.tfvars`, OCI keys, Docker Hub tokens).
+- Prefer small patches over broad refactors.
+- Stack is OCI OKE + Cilium/Hubble + Gateway API — not AWS EKS, not Istio/Kiali.
+- Worker nodes are ARM64 Always Free; keep multi-arch or arm64 images.
+- Frontend image tags are set by CI (`kubectl set image`); leave placeholder tags in manifests.

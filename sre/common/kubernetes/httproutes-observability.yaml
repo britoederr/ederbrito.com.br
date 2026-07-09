@@ -1,0 +1,84 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: grafana
+  namespace: observability
+spec:
+  parentRefs:
+    - name: ederbrito-gateway
+      namespace: kube-system
+      sectionName: https
+  hostnames:
+    - grafana.ederbrito.com.br
+  rules:
+    - backendRefs:
+        - name: grafana
+          port: 3000
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: prometheus
+  namespace: observability
+spec:
+  parentRefs:
+    - name: ederbrito-gateway
+      namespace: kube-system
+      sectionName: https
+  hostnames:
+    - prometheus.ederbrito.com.br
+  rules:
+    - backendRefs:
+        - name: prometheus
+          port: 9090
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: jaeger
+  namespace: observability
+spec:
+  parentRefs:
+    - name: ederbrito-gateway
+      namespace: kube-system
+      sectionName: https
+  hostnames:
+    - jaeger.ederbrito.com.br
+  rules:
+    - backendRefs:
+        - name: tracing
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: loki
+  namespace: observability
+spec:
+  parentRefs:
+    - name: ederbrito-gateway
+      namespace: kube-system
+      sectionName: https
+  hostnames:
+    - loki.ederbrito.com.br
+  rules:
+    - backendRefs:
+        - name: loki
+          port: 3100
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: hubble
+  namespace: kube-system
+spec:
+  parentRefs:
+    - name: ederbrito-gateway
+      namespace: kube-system
+      sectionName: https
+  hostnames:
+    - hubble.ederbrito.com.br
+  rules:
+    - backendRefs:
+        - name: hubble-ui
+          port: 80
