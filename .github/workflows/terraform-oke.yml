@@ -165,6 +165,14 @@ jobs:
     environment: prod
     needs: terraform-k8s-apply
     if: github.event_name == 'push'
+    # OKE kubeconfig uses exec auth via `oci`; keep CLI auth available for all kubectl/helm steps.
+    env:
+      OCI_CLI_AUTH: api_key
+      OCI_CLI_USER: ${{ secrets.TF_VAR_user_ocid }}
+      OCI_CLI_TENANCY: ${{ secrets.TF_VAR_tenancy_ocid }}
+      OCI_CLI_FINGERPRINT: ${{ secrets.TF_VAR_fingerprint }}
+      OCI_CLI_REGION: ${{ secrets.TF_VAR_region }}
+      OCI_CLI_KEY_FILE: ${{ github.workspace }}/oci_api_key.pem
 
     steps:
       - name: Checkout repository
@@ -176,18 +184,14 @@ jobs:
           version: ${{ env.KUBECTL_VERSION }}
 
       - name: Install OCI CLI and configure kubeconfig
-        env:
-          OCI_CLI_AUTH: api_key
-          OCI_CLI_USER: ${{ secrets.TF_VAR_user_ocid }}
-          OCI_CLI_TENANCY: ${{ secrets.TF_VAR_tenancy_ocid }}
-          OCI_CLI_FINGERPRINT: ${{ secrets.TF_VAR_fingerprint }}
-          OCI_CLI_REGION: ${{ secrets.TF_VAR_region }}
         run: |
           bash -c "$(curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh)" -- --accept-all-defaults
-          export PATH=$PATH:$HOME/bin
+          # Persist for later steps (export PATH only affects this step).
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+          export PATH="$PATH:$HOME/bin"
+
           echo "$TF_VAR_private_key" | sed 's/\\n/\n/g' > oci_api_key.pem
           chmod 600 oci_api_key.pem
-          export OCI_CLI_KEY_FILE="$GITHUB_WORKSPACE/oci_api_key.pem"
 
           CLUSTER_OCID=$(oci ce cluster list \
             --compartment-id $TF_VAR_compartment_ocid \
