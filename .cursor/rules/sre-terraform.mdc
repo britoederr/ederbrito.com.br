@@ -1,0 +1,16 @@
+---
+description: OCI Terraform conventions for OKE and DNS
+globs: sre/common/terraform/**
+alwaysApply: false
+---
+
+# Terraform (OCI)
+
+- Modules: `k8s/` (OKE + VCN), `dns/` (A records → Cilium gateway LB IP).
+- State keys (Object Storage): `ederbrito/common/oke`, `ederbrito/common/dns`.
+- Never commit `.tfvars`, `oci_api_key.pem`, or backend credentials.
+- Cluster: BASIC_CLUSTER, Flannel at create, then exclusive Cilium via Helm in CI.
+- Kubernetes version pin lives in `k8s/variables.tf` (`kubernetes_version`).
+- Region default in CI: `sa-saopaulo-1`; nodes `VM.Standard.A1.Flex` ARM.
+- DNS module reads `cilium-gateway` Service in `kube-system` (not Istio).
+- CNI or major K8s changes usually require cluster recreate on Always Free.

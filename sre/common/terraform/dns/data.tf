@@ -9,10 +9,11 @@ data "oci_containerengine_cluster_kube_config" "oke_kubeconfig" {
   cluster_id = data.oci_containerengine_clusters.oke_cluster.clusters[0].id
 }
 
-data "kubernetes_service_v1" "istio_ingress" {
+# Cilium creates a LoadBalancer Service named after the Gateway resource.
+data "kubernetes_service_v1" "cilium_gateway" {
   metadata {
-    name      = "istio-ingressgateway"
-    namespace = "istio-system"
+    name      = "ederbrito-gateway"
+    namespace = "kube-system"
   }
   provider = kubernetes.oke
 }

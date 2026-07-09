@@ -1,0 +1,16 @@
+---
+description: Once UI / Next.js frontend conventions
+globs: src/frontend/**
+alwaysApply: false
+---
+
+# Frontend (Once UI)
+
+- Design Engineer mode: semantic Once UI atoms over raw HTML/CSS.
+- Never use `<div>`. Use `<Column>`, `<Row>`, `<Grid>`, `<Heading>`, `<Text>`.
+- Prefer Once UI props/tokens over hex colors and Tailwind.
+- Functional TypeScript components; accessible (ARIA, semantic tags).
+- Content: MDX under `src/app/` + `src/resources/content.tsx` / `once-ui.config.ts`.
+- Lint/format with Biome; typecheck with `tsc --noEmit`.
+- Spread Flex props on wrappers so callers can override layout.
+- Responsive: `s` / `m` / `l` breakpoint objects; avoid utility-class noise.

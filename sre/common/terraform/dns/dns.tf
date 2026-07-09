@@ -1,3 +1,7 @@
+locals {
+  gateway_lb_ip = data.kubernetes_service_v1.cilium_gateway.status[0].load_balancer[0].ingress[0].ip
+}
+
 # Main Record
 resource "oci_dns_record" "main" {
   zone_name_or_id = var.domain_name
@@ -5,7 +9,7 @@ resource "oci_dns_record" "main" {
   rtype           = "A"
   ttl             = var.dns_ttl
 
-  rdata = data.kubernetes_service_v1.istio_ingress.status[0].load_balancer[0].ingress[0].ip
+  rdata = local.gateway_lb_ip
 }
 
 # Grafana DNS Record
@@ -15,7 +19,7 @@ resource "oci_dns_record" "grafana" {
   rtype           = "A"
   ttl             = var.dns_ttl
 
-  rdata = data.kubernetes_service_v1.istio_ingress.status[0].load_balancer[0].ingress[0].ip
+  rdata = local.gateway_lb_ip
 }
 
 # Prometheus DNS Record
@@ -25,7 +29,7 @@ resource "oci_dns_record" "prometheus" {
   rtype           = "A"
   ttl             = var.dns_ttl
 
-  rdata = data.kubernetes_service_v1.istio_ingress.status[0].load_balancer[0].ingress[0].ip
+  rdata = local.gateway_lb_ip
 }
 
 # Jaeger DNS Record
@@ -35,17 +39,17 @@ resource "oci_dns_record" "jaeger" {
   rtype           = "A"
   ttl             = var.dns_ttl
 
-  rdata = data.kubernetes_service_v1.istio_ingress.status[0].load_balancer[0].ingress[0].ip
+  rdata = local.gateway_lb_ip
 }
 
-# Kiali DNS Record
-resource "oci_dns_record" "kiali" {
+# Hubble DNS Record
+resource "oci_dns_record" "hubble" {
   zone_name_or_id = var.domain_name
-  domain          = "kiali.${var.domain_name}"
+  domain          = "hubble.${var.domain_name}"
   rtype           = "A"
   ttl             = var.dns_ttl
 
-  rdata = data.kubernetes_service_v1.istio_ingress.status[0].load_balancer[0].ingress[0].ip
+  rdata = local.gateway_lb_ip
 }
 
 # Loki DNS Record
@@ -55,5 +59,5 @@ resource "oci_dns_record" "loki" {
   rtype           = "A"
   ttl             = var.dns_ttl
 
-  rdata = data.kubernetes_service_v1.istio_ingress.status[0].load_balancer[0].ingress[0].ip
+  rdata = local.gateway_lb_ip
 }

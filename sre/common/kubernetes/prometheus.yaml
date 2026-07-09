@@ -11,7 +11,7 @@ metadata:
     helm.sh/chart: prometheus-28.0.0
     app.kubernetes.io/part-of: prometheus
   name: prometheus
-  namespace: istio-system
+  namespace: observability
   annotations:
     {}
 ---
@@ -27,7 +27,7 @@ metadata:
     helm.sh/chart: prometheus-28.0.0
     app.kubernetes.io/part-of: prometheus
   name: prometheus
-  namespace: istio-system
+  namespace: observability
 data:
   allow-snippet-annotations: "false"
   alerting_rules.yml: |
@@ -411,7 +411,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: prometheus
-    namespace: istio-system
+    namespace: observability
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -429,7 +429,7 @@ metadata:
     helm.sh/chart: prometheus-28.0.0
     app.kubernetes.io/part-of: prometheus
   name: prometheus
-  namespace: istio-system
+  namespace: observability
 spec:
   ports:
     - name: http
@@ -455,7 +455,7 @@ metadata:
     helm.sh/chart: prometheus-28.0.0
     app.kubernetes.io/part-of: prometheus
   name: prometheus
-  namespace: istio-system
+  namespace: observability
 spec:
   strategy:
     type: Recreate
@@ -477,7 +477,6 @@ spec:
         helm.sh/chart: prometheus-28.0.0
         app.kubernetes.io/part-of: prometheus
         
-        sidecar.istio.io/inject: "false"
     spec:
       enableServiceLinks: true
       serviceAccountName: prometheus
@@ -557,23 +556,3 @@ spec:
         - name: storage-volume
           emptyDir:
             {}
----
-apiVersion: networking.istio.io/v1beta1
-kind: VirtualService
-metadata:
-  name: prometheus-vs
-  namespace: istio-system
-spec:
-  hosts:
-    - prometheus.ederbrito.com.br
-  gateways:
-    - ederbrito-com-br-gateway
-  http:
-    - match:
-        - uri:
-            prefix: "/"   # route all paths
-      route:
-        - destination:
-            host: prometheus.istio-system.svc.cluster.local
-            port:
-              number: 9090

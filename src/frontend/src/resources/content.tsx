@@ -242,7 +242,7 @@ const about: About = {
         description: (
           <>
             Multi-cloud architecture and operations across AWS, GCP, and OCI. Container
-            orchestration with Kubernetes, Docker, and Helm; service mesh with Istio and mTLS.
+            orchestration with Kubernetes, Docker, and Helm; eBPF networking with Cilium and Hubble.
           </>
         ),
         tags: [
@@ -251,7 +251,7 @@ const about: About = {
           { name: "Kubernetes", icon: "kubernetes" },
           { name: "Docker", icon: "docker" },
           { name: "Helm", icon: "helm" },
-          { name: "Istio", icon: "istio" },
+          { name: "Cilium", icon: "kubernetes" },
         ],
         images: [],
       },

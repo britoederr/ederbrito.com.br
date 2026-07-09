@@ -13,7 +13,7 @@ data "oci_core_services" "all_oci_services" {
   }
 }
 
-# Retrieve Oracle Linux image for OKE node pool
+# Prefer OKE-optimized OL8 images (cgroups v2 required for Kubernetes 1.35+).
 data "oci_core_images" "oracle_linux_images" {
   compartment_id           = var.compartment_ocid
   operating_system         = "Oracle Linux"
@@ -21,4 +21,10 @@ data "oci_core_images" "oracle_linux_images" {
   shape                    = "VM.Standard.A1.Flex"
   sort_by                  = "TIMECREATED"
   sort_order               = "DESC"
+
+  filter {
+    name   = "display_name"
+    values = ["^Oracle-Linux-8.*OKE.*"]
+    regex  = true
+  }
 }

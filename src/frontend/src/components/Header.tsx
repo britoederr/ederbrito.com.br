@@ -143,7 +143,7 @@ const playAreaLinks = [
   { label: "Grafana", href: "https://grafana.ederbrito.com.br", icon: "grafana" },
   { label: "Jaeger", href: "https://jaeger.ederbrito.com.br", icon: "rocket" },
   { label: "Loki", href: "https://loki.ederbrito.com.br", icon: "globe" },
-  { label: "Kiali", href: "https://kiali.ederbrito.com.br", icon: "openLink" },
+  { label: "Hubble", href: "https://hubble.ederbrito.com.br", icon: "openLink" },
 ];
 
 const PlayAreaDropdown = ({ showLabel = true }: { showLabel?: boolean }) => {

@@ -8,8 +8,9 @@ resource "oci_containerengine_cluster" "oke_cluster" {
 
   type = "BASIC_CLUSTER"
 
+  # Flannel at create; CI replaces with exclusive Cilium + Hubble.
   cluster_pod_network_options {
-    cni_type = "OCI_VCN_IP_NATIVE"
+    cni_type = "FLANNEL_OVERLAY"
   }
 
   vcn_id = oci_core_vcn.oke_vcn.id
@@ -41,8 +42,7 @@ resource "oci_containerengine_node_pool" "oke_k8s_node_pool" {
       subnet_id           = oci_core_subnet.node_subnet.id
     }
     node_pool_pod_network_option_details {
-      cni_type       = "OCI_VCN_IP_NATIVE"
-      pod_subnet_ids = [oci_core_subnet.node_subnet.id]
+      cni_type = "FLANNEL_OVERLAY"
     }
   }
 
