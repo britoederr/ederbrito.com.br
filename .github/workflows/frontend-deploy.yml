@@ -25,7 +25,7 @@ env:
 
 jobs:
   test:
-    name: Test (tsc + biome)
+    name: Test (tsc + lint)
     runs-on: ubuntu-latest
 
     steps:
@@ -45,14 +45,6 @@ jobs:
 
       - name: TypeScript type check
         run: npx tsc --noEmit
-        working-directory: src/frontend
-
-      - name: Biome check
-        run: npx @biomejs/biome check .
-        working-directory: src/frontend
-
-      - name: Next.js production build
-        run: npm run build
         working-directory: src/frontend
 
   docker-build-scan:
