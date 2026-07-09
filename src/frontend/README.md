@@ -110,7 +110,7 @@ Update the running image after a new build:
 
 ```bash
 kubectl set image deployment/frontend \
-  frontend=britoederr/ederbrito.com.br:<tag> \
+  frontend=docker.io/britoederr/ederbrito.com.br:<tag> \
   -n ederbrito
 ```
 

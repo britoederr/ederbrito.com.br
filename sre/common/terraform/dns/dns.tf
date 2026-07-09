@@ -1,5 +1,16 @@
 locals {
-  gateway_lb_ip = data.kubernetes_service_v1.cilium_gateway.status[0].load_balancer[0].ingress[0].ip
+  # OCI LB may still be Pending when DNS plan runs; fail clearly instead of indexing null.
+  gateway_lb_ip = try(
+    data.kubernetes_service_v1.cilium_gateway.status[0].load_balancer[0].ingress[0].ip,
+    null
+  )
+}
+
+check "cilium_gateway_has_lb_ip" {
+  assert {
+    condition     = local.gateway_lb_ip != null && local.gateway_lb_ip != ""
+    error_message = "Service kube-system/ederbrito-gateway has no LoadBalancer IP yet. Wait for OCI LB provisioning (often 3-5 minutes), then re-run DNS plan. Check: kubectl get svc -n kube-system ederbrito-gateway"
+  }
 }
 
 # Main Record

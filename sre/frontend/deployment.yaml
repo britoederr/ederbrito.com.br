@@ -24,8 +24,9 @@ spec:
         - name: dockerhub-secret
       containers:
         - name: frontend
-          # Image tag is overwritten by `kubectl set image` in the deploy pipeline
-          image: britoederr/ederbrito.com.br:latest
+          # Image tag is overwritten by `kubectl set image` in the deploy pipeline.
+          # Fully qualified name required by CRI-O short-name enforcement (OKE 1.34+).
+          image: docker.io/britoederr/ederbrito.com.br:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3000

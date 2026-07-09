@@ -259,6 +259,27 @@ jobs:
           kubectl -n kube-system rollout status deployment/hubble-relay --timeout=5m || true
           kubectl -n kube-system rollout status deployment/hubble-ui --timeout=5m || true
 
+      - name: Wait for Cilium Gateway LoadBalancer IP
+        run: |
+          set -euo pipefail
+          echo "Waiting for Service kube-system/ederbrito-gateway to get an EXTERNAL-IP..."
+          for attempt in $(seq 1 60); do
+            IP=$(kubectl get svc -n kube-system ederbrito-gateway \
+              -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+            if [[ -n "${IP}" ]]; then
+              echo "Gateway LoadBalancer IP: ${IP}"
+              exit 0
+            fi
+            echo "Attempt ${attempt}/60: no EXTERNAL-IP yet"
+            kubectl get svc -n kube-system ederbrito-gateway || true
+            kubectl get gateway -n kube-system ederbrito-gateway -o wide || true
+            sleep 15
+          done
+          echo "Timed out waiting for ederbrito-gateway LoadBalancer IP"
+          kubectl describe svc -n kube-system ederbrito-gateway || true
+          kubectl describe gateway -n kube-system ederbrito-gateway || true
+          exit 1
+
   terraform-dns-preparation:
     name: Terraform Preparation for DNS Creation
     runs-on: ubuntu-latest
