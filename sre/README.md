@@ -27,6 +27,13 @@ sre/
 │   ├── deployment.yaml     # App deployment (image tag set by CI)
 │   ├── service.yaml        # ClusterIP service on port 3000
 │   └── httproute.yaml      # Gateway API route for ederbrito.com.br
+├── dashboards/             # Grafana JSON (import manually; not auto-provisioned)
+│   ├── dashboard_cilium.json
+│   ├── dashboard_k8s_global.json
+│   ├── dashboard_k8s_namespace.json
+│   ├── dashboard_k8s_nodes.json
+│   ├── dashboard_k8s_pods.json
+│   └── dashboard_logs.json
 └── common/
     ├── terraform/
     │   ├── k8s/            # OKE cluster, VCN, subnets, node pool
@@ -40,7 +47,10 @@ sre/
         ├── prometheus.yaml
         ├── grafana.yaml
         ├── jaeger.yaml
-        └── loki.yaml
+        ├── loki.yaml
+        ├── alloy.yaml
+        ├── cadvisor.yaml
+        └── node-exporter.yaml
 ```
 
 ## Architecture
@@ -239,15 +249,33 @@ kubectl get svc -n kube-system cilium-gateway-ederbrito-gateway   # check for ex
 
 ## Observability Stack
 
-All tools are accessible via HTTPS through the Cilium Gateway.
+Public UIs are reachable via HTTPS through the Cilium Gateway. Collectors (Alloy, cAdvisor, Node Exporter) stay in-cluster only.
 
-| Tool | URL | Purpose |
-|------|-----|---------|
+| Tool | URL / exposure | Purpose |
+|------|----------------|---------|
 | Prometheus | `prometheus.ederbrito.com.br` | Metrics collection, alerting rules |
-| Grafana | `grafana.ederbrito.com.br` | Dashboards (Kubernetes, app metrics) |
+| Grafana | `grafana.ederbrito.com.br` | Dashboards (Kubernetes, app metrics, logs, traces) |
 | Jaeger | `jaeger.ederbrito.com.br` | Distributed tracing (OTLP ingest) |
-| Loki | `loki.ederbrito.com.br` | Log aggregation |
+| Loki | `loki.ederbrito.com.br` | Log aggregation (**72h / 3-day** retention via compactor) |
+| Alloy | (DaemonSet, in-cluster) | Pod logs + cluster events → Loki |
+| cAdvisor | (DaemonSet, in-cluster) | Container / cgroup metrics → Prometheus |
+| Node Exporter | (DaemonSet, in-cluster) | Host metrics (`node_*`) → Prometheus |
 | Hubble | `hubble.ederbrito.com.br` | Cilium network flow visibility |
+| kube-state-metrics | (Helm in `kube-system`) | Object-state metrics (`kube_*`); installed by the platform workflow |
+
+Observability workloads run in the `observability` namespace. Hubble UI/Relay and kube-state-metrics run in `kube-system`.
+
+### Metric sources
+
+| Series prefix | Source | Notes |
+|---------------|--------|-------|
+| `container_*` / `machine_*` | kubelet cAdvisor proxy **and** standalone cAdvisor | Prometheus still scrapes `kubernetes-nodes-cadvisor`; DaemonSet adds a direct `/metrics` scrape via pod annotations |
+| `node_*` | Node Exporter | Dedicated Prometheus job `node-exporter` (not annotation scrape) |
+| `kube_*` | kube-state-metrics | Needed by Grafana node/pod dashboards (`kube_node_info`, `kube_pod_info`, …) |
+
+Prometheus labels every scrape with `cluster: ederbrito` (scrape-time relabel; required by the Grafana JSON under `sre/dashboards/`). The `node-exporter` job also sets `instance` and `node` to the Kubernetes node name and overwrites `node_uname_info.nodename` to match — OKE nodes are often named by private IP while the kernel hostname differs, which would otherwise break the Nodes dashboard `instance` variable.
+
+### Application scrape annotations
 
 Prometheus discovers application pods via annotations. The frontend pod sets:
 
@@ -257,7 +285,32 @@ prometheus.io/port: "3000"
 prometheus.io/path: "/api/metrics"
 ```
 
-Observability workloads run in the `observability` namespace. Hubble UI/Relay run in `kube-system`.
+### Grafana datasources and dashboards
+
+Grafana is provisioned with Prometheus, Loki, and Jaeger datasources (`sre/common/kubernetes/grafana.yaml`). The Jaeger URL is `http://tracing:80/jaeger` because the query UI uses `base_path: /jaeger`.
+
+Dashboard JSON lives in `sre/dashboards/` and is **not** auto-loaded. Import manually in Grafana (or via the UI) after the stack is up:
+
+| File | Focus |
+|------|--------|
+| `dashboard_k8s_global.json` | Cluster-wide CPU/memory/network |
+| `dashboard_k8s_nodes.json` | Per-node view (`node_*` + `kube_*`) |
+| `dashboard_k8s_namespace.json` / `dashboard_k8s_pods.json` | Namespace / pod views |
+| `dashboard_cilium.json` | Cilium / Hubble network |
+| `dashboard_logs.json` | Loki log explorer |
+
+### Logs pipeline
+
+```
+Pods / events  →  Alloy (DaemonSet)  →  Loki (72h retention)  →  Grafana
+```
+
+Apply collectors with the rest of the platform manifests:
+
+```bash
+kubectl apply -f sre/common/kubernetes/
+kubectl get pods -n observability
+```
 
 > Default credentials for each tool may need to be configured. Check the relevant manifest in `sre/common/kubernetes/`.
 
@@ -442,6 +495,23 @@ Verify security list rules allow communication between the worker node subnet an
 kubectl describe pod -n ederbrito -l app=frontend
 ```
 Most common cause: missing `dockerhub-secret` in the `ederbrito` namespace. See [Frontend Deployment](#frontend-deployment).
+
+**Missing `node_*` metrics or empty Grafana Nodes dashboard**
+- Confirm Node Exporter is Running: `kubectl get ds/node-exporter -n observability`
+- Confirm the Prometheus `node-exporter` job is up (Status → Targets)
+- Series should include `cluster="ederbrito"` and `node` / `instance` equal to the Kubernetes node name
+- After changing `prometheus.yaml`, restart Prometheus so the ConfigMap remounts: `kubectl rollout restart deploy/prometheus -n observability`
+- Import (or re-import) JSON from `sre/dashboards/` — Grafana does not auto-provision those files
+- `kube_node_info` comes from kube-state-metrics in `kube-system` (platform Helm install), not from Node Exporter
+
+**Missing logs in Loki / Grafana Explore**
+- Alloy must be Running on each node: `kubectl get ds/alloy -n observability`
+- Loki retention is **72h**; older samples are rejected and compacted away
+- Check Alloy → Loki push errors: `kubectl logs -n observability -l app.kubernetes.io/name=alloy --tail=100`
+
+**cAdvisor CrashLoop / noisy factory logs**
+- On OKE (CRI-O), failed docker/podman/containerd factory registration is expected
+- Ensure mounts include `/var/run/crio`, `/var/lib/containers`, and `/var/log` (see `cadvisor.yaml`)
 
 ## Important Notes
 

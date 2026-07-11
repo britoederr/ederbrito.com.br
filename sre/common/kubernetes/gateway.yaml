@@ -4,7 +4,7 @@ metadata:
   name: ederbrito-gateway
   namespace: kube-system
   annotations:
-    cert-manager.io/cluster-issuer: ssl-certificate-letsencrypt
+    # LB shape only. TLS secret comes from Certificate CR in certificate.yaml.
     service.beta.kubernetes.io/oci-load-balancer-shape: "10Mbps"
 spec:
   gatewayClassName: cilium
@@ -48,7 +48,7 @@ spec:
         namespaces:
           from: All
 ---
-# Redirect HTTP → HTTPS for apex and subdomains
+# Redirect HTTP → HTTPS for normal traffic, but never ACME HTTP-01 paths.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -61,7 +61,11 @@ spec:
     - name: ederbrito-gateway
       sectionName: http-apex
   rules:
-    - filters:
+    - matches:
+        - path:
+            type: RegularExpression
+            value: "^/(?!\\.well-known/acme-challenge/).*"
+      filters:
         - type: RequestRedirect
           requestRedirect:
             scheme: https

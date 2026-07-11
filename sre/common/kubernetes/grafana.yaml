@@ -59,7 +59,22 @@ data:
       name: Loki
       orgId: 1
       type: loki
+      uid: loki
       url: http://loki:3100
+    - access: proxy
+      editable: true
+      isDefault: false
+      jsonData:
+        tracesToLogsV2:
+          datasourceUid: loki
+        nodeGraph:
+          enabled: true
+      name: Jaeger
+      orgId: 1
+      type: jaeger
+      uid: jaeger
+      # Jaeger query is configured with base_path: /jaeger
+      url: http://tracing:80/jaeger
   dashboardproviders.yaml: |
     apiVersion: 1
     providers: []

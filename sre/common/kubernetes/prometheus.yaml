@@ -39,6 +39,8 @@ data:
       evaluation_interval: 1m
       scrape_interval: 15s
       scrape_timeout: 10s
+      external_labels:
+        cluster: ederbrito
     scrape_configs:
     - job_name: kubernetes-api-servers
       bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
@@ -51,6 +53,8 @@ data:
         - __meta_kubernetes_namespace
         - __meta_kubernetes_service_name
         - __meta_kubernetes_endpoint_port_name
+      - replacement: ederbrito
+        target_label: cluster
       scheme: https
       tls_config:
         ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
@@ -68,6 +72,8 @@ data:
         source_labels:
         - __meta_kubernetes_node_name
         target_label: __metrics_path__
+      - replacement: ederbrito
+        target_label: cluster
       scheme: https
       tls_config:
         ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
@@ -85,6 +91,8 @@ data:
         source_labels:
         - __meta_kubernetes_node_name
         target_label: __metrics_path__
+      - replacement: ederbrito
+        target_label: cluster
       scheme: https
       tls_config:
         ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
@@ -146,6 +154,8 @@ data:
         source_labels:
         - __meta_kubernetes_pod_node_name
         target_label: node
+      - replacement: ederbrito
+        target_label: cluster
     - job_name: kubernetes-pods-slow
       honor_labels: true
       kubernetes_sd_configs:
@@ -200,6 +210,8 @@ data:
         source_labels:
         - __meta_kubernetes_pod_node_name
         target_label: node
+      - replacement: ederbrito
+        target_label: cluster
       scrape_interval: 5m
       scrape_timeout: 30s
     - job_name: kubernetes-service-endpoints
@@ -249,6 +261,8 @@ data:
         source_labels:
         - __meta_kubernetes_pod_node_name
         target_label: node
+      - replacement: ederbrito
+        target_label: cluster
     - job_name: kubernetes-service-endpoints-slow
       honor_labels: true
       kubernetes_sd_configs:
@@ -292,6 +306,8 @@ data:
         source_labels:
         - __meta_kubernetes_pod_node_name
         target_label: node
+      - replacement: ederbrito
+        target_label: cluster
       scrape_interval: 5m
       scrape_timeout: 30s
     - job_name: kubernetes-services
@@ -323,10 +339,54 @@ data:
       - source_labels:
         - __meta_kubernetes_service_name
         target_label: service
+      - replacement: ederbrito
+        target_label: cluster
+    - job_name: node-exporter
+      kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names:
+          - observability
+      relabel_configs:
+      - action: keep
+        regex: node-exporter
+        source_labels:
+        - __meta_kubernetes_pod_label_app_kubernetes_io_name
+      - action: drop
+        regex: Pending|Succeeded|Failed|Completed
+        source_labels:
+        - __meta_kubernetes_pod_phase
+      - action: replace
+        regex: (.+)
+        replacement: $1:9100
+        source_labels:
+        - __meta_kubernetes_pod_ip
+        target_label: __address__
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_pod_node_name
+        target_label: instance
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_pod_node_name
+        target_label: node
+      - replacement: ederbrito
+        target_label: cluster
+      # Dashboard joins $node (kube_node_info) to node_uname_info via nodename.
+      # OKE node names are often IPs while uname nodename differs — overwrite it.
+      metric_relabel_configs:
+      - source_labels:
+        - __name__
+        - node
+        regex: node_uname_info;(.+)
+        replacement: $1
+        target_label: nodename
     - job_name: prometheus
       static_configs:
       - targets:
         - localhost:9090
+        labels:
+          cluster: ederbrito
     - job_name: prometheus-pushgateway
       honor_labels: true
       kubernetes_sd_configs:
@@ -336,6 +396,8 @@ data:
         regex: pushgateway
         source_labels:
         - __meta_kubernetes_service_annotation_prometheus_io_probe
+      - replacement: ederbrito
+        target_label: cluster
     rule_files:
     - /etc/config/recording_rules.yml
     - /etc/config/alerting_rules.yml
