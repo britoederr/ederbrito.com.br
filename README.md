@@ -28,7 +28,7 @@ This repository contains the full source for my personal portfolio site and the 
 | CNI / networking | Cilium (exclusive) + Hubble |
 | Ingress | Cilium Gateway API |
 | TLS | cert-manager + Let's Encrypt |
-| Observability | Prometheus, Grafana, Loki, Jaeger, Hubble |
+| Observability | Prometheus, Grafana, Loki, Alloy, cAdvisor, Node Exporter, Jaeger, Hubble |
 | Infrastructure | Terraform (OCI provider) |
 | CI/CD | GitHub Actions |
 | Cloud | Oracle Cloud Infrastructure — Always Free tier |
@@ -72,6 +72,7 @@ ederbrito.com.br/
 │   └── frontend/       # Next.js application  →  see src/frontend/README.md
 └── sre/
     ├── frontend/        # Kubernetes manifests for the frontend app
+    ├── dashboards/      # Grafana JSON dashboards (manual import)
     └── common/          # Terraform (OCI infra) + platform/observability manifests
                          # →  see sre/README.md
 ```

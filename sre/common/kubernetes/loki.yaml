@@ -54,7 +54,8 @@ data:
       max_cache_freshness_per_query: 10m
       query_timeout: 300s
       reject_old_samples: true
-      reject_old_samples_max_age: 168h
+      reject_old_samples_max_age: 72h
+      retention_period: 72h
       split_queries_by_interval: 15m
       volume_enabled: true
     memberlist:
@@ -64,6 +65,12 @@ data:
       enabled: false
     query_range:
       align_queries_with_step: true
+    compactor:
+      working_directory: /var/loki/compactor
+      compaction_interval: 10m
+      retention_enabled: true
+      retention_delete_delay: 2h
+      delete_request_store: filesystem
     ruler:
       storage:
         type: local

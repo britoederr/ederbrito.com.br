@@ -12,6 +12,7 @@ Short index for AI tools. Prefer this file over reading every README.
 | `sre/common/terraform/k8s/` | OKE cluster + VCN (Terraform) | `sre/README.md` |
 | `sre/common/terraform/dns/` | OCI DNS A records → Cilium gateway LB | `sre/README.md` |
 | `sre/common/kubernetes/` | Platform: Gateway, cert-manager, observability | `sre/README.md` |
+| `sre/dashboards/` | Grafana JSON (manual import; do not load into context) | `sre/README.md` |
 | `.github/workflows/` | CI: frontend deploy + OKE/platform bootstrap | — |
 
 ## Edit X → read Y
