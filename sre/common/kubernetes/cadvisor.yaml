@@ -36,7 +36,7 @@ spec:
       hostPID: true
       containers:
         - name: cadvisor
-          image: ghcr.io/google/cadvisor:v0.60.3
+          image: ghcr.io/google/cadvisor:v0.61.1
           imagePullPolicy: IfNotPresent
           args:
             - --housekeeping_interval=30s

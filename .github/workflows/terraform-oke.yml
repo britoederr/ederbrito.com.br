@@ -34,9 +34,10 @@ env:
   TF_VAR_domain_name: "ederbrito.com.br"
   ENVIRONMENT: ${{ vars.ENVIRONMENT }}
   CILIUM_VERSION: "1.17.6"
-  CERT_MANAGER_VERSION: "v1.19.2"
-  KUBECTL_VERSION: "v1.36.1"
-  GATEWAY_API_VERSION: "v1.3.0"
+  ISTIO_VERSION: "1.30.8"
+  CERT_MANAGER_VERSION: "v1.21.3"
+  KUBE_STATE_METRICS_CHART_VERSION: "9.1.0"
+  KUBECTL_VERSION: "v1.37.1"
 
 jobs:
   terraform-k8s-preparation:
@@ -160,7 +161,7 @@ jobs:
           terraform apply -auto-approve -lock=false tfplan-k8s-${ENVIRONMENT}-${GITHUB_SHA}
 
   platform-bootstrap:
-    name: Cilium Hubble Cert-Manager Observability
+    name: Istio Cert-Manager Observability
     runs-on: ubuntu-latest
     environment: prod
     needs: terraform-k8s-apply
@@ -206,20 +207,17 @@ jobs:
             --token-version 2.0.0 \
             --kube-endpoint PUBLIC_ENDPOINT
 
-      - name: Install Gateway API CRDs
-        run: |
-          kubectl apply -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/${GATEWAY_API_VERSION}/standard-install.yaml"
-
-      - name: Install Cilium + Hubble
+      - name: Install Cilium CNI
         run: |
           helm repo add cilium https://helm.cilium.io/
-          helm repo add kube-state-metrics https://kubernetes.github.io/kube-state-metrics
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
           helm repo update
 
           # Remove Flannel so Cilium can own CNI exclusively (OKE Flannel → Cilium path).
           kubectl -n kube-system delete daemonset kube-flannel-ds --ignore-not-found
           kubectl -n kube-system delete configmap kube-flannel-cfg --ignore-not-found
 
+          # CNI only. Ingress is Istio; Hubble and Gateway API stay off.
           helm upgrade --install cilium cilium/cilium \
             --namespace kube-system \
             --version "${CILIUM_VERSION}" \
@@ -227,18 +225,30 @@ jobs:
             --set ipam.mode=kubernetes \
             --set tunnelProtocol=vxlan \
             --set kubeProxyReplacement=true \
-            --set gatewayAPI.enabled=true \
-            --set hubble.enabled=true \
-            --set hubble.relay.enabled=true \
-            --set hubble.ui.enabled=true \
-            --set hubble.metrics.enableOpenMetrics=true \
+            --set gatewayAPI.enabled=false \
+            --set hubble.enabled=false \
+            --set hubble.relay.enabled=false \
+            --set hubble.ui.enabled=false \
             --set prometheus.enabled=true \
             --set operator.prometheus.enabled=true \
             --wait --timeout 15m
 
-          helm upgrade --install kube-state-metrics kube-state-metrics/kube-state-metrics \
+          helm upgrade --install kube-state-metrics prometheus-community/kube-state-metrics \
             -n kube-system \
+            --version "${KUBE_STATE_METRICS_CHART_VERSION}" \
             --wait
+
+      - name: Install Istio
+        run: |
+          helm repo add istio https://istio-release.storage.googleapis.com/charts
+          helm repo update
+          helm upgrade --install istio-base istio/base \
+            -n istio-system --create-namespace --version "${ISTIO_VERSION}"
+          helm upgrade --install istiod istio/istiod \
+            -n istio-system --wait --version "${ISTIO_VERSION}"
+          helm upgrade --install istio-ingressgateway istio/gateway \
+            --version "${ISTIO_VERSION}" -n istio-system --wait \
+            --set "service.annotations.service\.beta\.kubernetes\.io/oci-load-balancer-shape=10Mbps"
 
       - name: Install cert-manager
         run: |
@@ -249,36 +259,36 @@ jobs:
             --create-namespace \
             --version "${CERT_MANAGER_VERSION}" \
             --set crds.enabled=true \
-            --set config.enableGatewayAPI=true \
             --wait
 
       - name: Apply platform manifests
         run: |
           kubectl apply -f sre/common/kubernetes/namespace.yaml
-          kubectl apply -f sre/common/kubernetes/
-          kubectl -n kube-system rollout status deployment/hubble-relay --timeout=5m || true
-          kubectl -n kube-system rollout status deployment/hubble-ui --timeout=5m || true
+          find sre/common/kubernetes -name '*.yaml' ! -name 'grafana-dashboards.yaml' -print0 \
+            | xargs -0 -n1 kubectl apply -f
+          # Client-side apply stores the whole ConfigMap in an annotation and exceeds the 256KiB limit.
+          kubectl apply --server-side --force-conflicts -f sre/common/kubernetes/grafana-dashboards.yaml
+          kubectl -n istio-system rollout status deploy/istiod --timeout=5m
+          kubectl -n istio-system rollout status deploy/istio-ingressgateway --timeout=5m
 
-      - name: Wait for Cilium Gateway LoadBalancer IP
+      - name: Wait for Istio ingress LoadBalancer IP
         run: |
           set -euo pipefail
-          SVC_NAME="cilium-gateway-ederbrito-gateway"
-          echo "Waiting for Service kube-system/${SVC_NAME} to get an EXTERNAL-IP..."
+          SVC_NAME="istio-ingressgateway"
+          echo "Waiting for Service istio-system/${SVC_NAME} to get an EXTERNAL-IP..."
           for attempt in $(seq 1 60); do
-            IP=$(kubectl get svc -n kube-system "${SVC_NAME}" \
+            IP=$(kubectl get svc -n istio-system "${SVC_NAME}" \
               -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
             if [[ -n "${IP}" ]]; then
-              echo "Gateway LoadBalancer IP: ${IP}"
+              echo "Ingress LoadBalancer IP: ${IP}"
               exit 0
             fi
             echo "Attempt ${attempt}/60: no EXTERNAL-IP yet"
-            kubectl get svc -n kube-system "${SVC_NAME}" || true
-            kubectl get gateway -n kube-system ederbrito-gateway -o wide || true
+            kubectl get svc -n istio-system "${SVC_NAME}" || true
             sleep 15
           done
           echo "Timed out waiting for ${SVC_NAME} LoadBalancer IP"
-          kubectl describe svc -n kube-system "${SVC_NAME}" || true
-          kubectl describe gateway -n kube-system ederbrito-gateway || true
+          kubectl describe svc -n istio-system "${SVC_NAME}" || true
           exit 1
 
   terraform-dns-preparation:

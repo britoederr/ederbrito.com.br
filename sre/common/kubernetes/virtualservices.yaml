@@ -1,0 +1,79 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: grafana-vs
+  namespace: observability
+spec:
+  hosts:
+    - grafana.ederbrito.com.br
+  gateways:
+    - istio-system/ederbrito-com-br-gateway
+  http:
+    - match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: grafana.observability.svc.cluster.local
+            port:
+              number: 3000
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: prometheus-vs
+  namespace: observability
+spec:
+  hosts:
+    - prometheus.ederbrito.com.br
+  gateways:
+    - istio-system/ederbrito-com-br-gateway
+  http:
+    - match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: prometheus.observability.svc.cluster.local
+            port:
+              number: 9090
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: jaeger-vs
+  namespace: observability
+spec:
+  hosts:
+    - jaeger.ederbrito.com.br
+  gateways:
+    - istio-system/ederbrito-com-br-gateway
+  http:
+    - match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: tracing.observability.svc.cluster.local
+            port:
+              number: 80
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: loki-vs
+  namespace: observability
+spec:
+  hosts:
+    - loki.ederbrito.com.br
+  gateways:
+    - istio-system/ederbrito-com-br-gateway
+  http:
+    - match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: loki.observability.svc.cluster.local
+            port:
+              number: 3100

@@ -8,4 +8,4 @@ Next.js 16 + Once UI portfolio app.
 - Observability: OTEL → Jaeger; metrics at `/api/metrics`; Pino logs.
 - Deploy: Docker multi-arch → OKE via `.github/workflows/frontend-deploy.yml`.
 
-Do not reintroduce Istio sidecar annotations or VirtualServices; routing is Gateway API / HTTPRoute under `sre/frontend/`.
+Routing is an Istio VirtualService under `sre/frontend/`. Do not add Gateway API HTTPRoutes.

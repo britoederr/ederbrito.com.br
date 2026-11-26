@@ -7,7 +7,7 @@ locals {
   project_name = var.project_name
   prefix_name  = "oke-${local.project_name}" # Prefix used to identity all resources refering to this module
 
-  # Strip leading "v" for image name matching (e.g. v1.36.1 -> 1.36.1).
+  # Strip leading "v" for image name matching (e.g. v1.37.1 -> 1.37.1).
   kubernetes_version_number = trimprefix(var.kubernetes_version, "v")
 
   oke_sources = data.oci_containerengine_node_pool_option.oke_node_pool_option.sources

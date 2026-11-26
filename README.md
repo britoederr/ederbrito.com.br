@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Terraform](https://img.shields.io/badge/terraform-1.12+-blue.svg)](https://www.terraform.io/)
-[![Kubernetes](https://img.shields.io/badge/kubernetes-1.36+-blue.svg)](https://kubernetes.io/)
+[![Kubernetes](https://img.shields.io/badge/kubernetes-1.37+-blue.svg)](https://kubernetes.io/)
 [![OCI](https://img.shields.io/badge/OCI-Always%20Free-orange.svg)](https://www.oracle.com/cloud/free/)
 
 Personal portfolio running on a self-managed Kubernetes cluster hosted entirely on Oracle Cloud Infrastructure's Always Free tier — no monthly infrastructure cost.
@@ -24,11 +24,11 @@ This repository contains the full source for my personal portfolio site and the 
 |-------|-----------|
 | Frontend | Next.js 16, React 19, TypeScript, Once UI |
 | Container | Docker (multi-stage, `node:24-alpine`, non-root) |
-| Orchestration | Kubernetes 1.36 on OCI (Oracle Kubernetes Engine) |
-| CNI / networking | Cilium (exclusive) + Hubble |
-| Ingress | Cilium Gateway API |
+| Orchestration | Kubernetes 1.37 on OCI (Oracle Kubernetes Engine) |
+| CNI / networking | Cilium (exclusive) |
+| Ingress | Istio ingress gateway |
 | TLS | cert-manager + Let's Encrypt |
-| Observability | Prometheus, Grafana, Loki, Alloy, cAdvisor, Node Exporter, Jaeger, Hubble |
+| Observability | Prometheus, Grafana, Loki, Alloy, cAdvisor, Node Exporter, Jaeger, Kiali |
 | Infrastructure | Terraform (OCI provider) |
 | CI/CD | GitHub Actions |
 | Cloud | Oracle Cloud Infrastructure — Always Free tier |
@@ -42,20 +42,20 @@ Internet
 OCI Load Balancer (free tier)
     │
     ▼
-Cilium Gateway (Gateway API)
+Istio ingress gateway
     │
     ├──▶ ederbrito.com.br            →  Next.js frontend (namespace: ederbrito)
     ├──▶ grafana.ederbrito.com.br    →  Grafana
     ├──▶ jaeger.ederbrito.com.br     →  Jaeger
     ├──▶ prometheus.ederbrito.com.br →  Prometheus
     ├──▶ loki.ederbrito.com.br       →  Loki
-    └──▶ hubble.ederbrito.com.br     →  Hubble UI
+    └──▶ kiali.ederbrito.com.br      →  Kiali
 
 OKE Cluster (2× VM.Standard.A1.Flex — ARM, 2 OCPUs / 12GB RAM each)
     Private subnet ← NAT Gateway → Internet
 ```
 
-Terraform provisions the OCI infrastructure (VCN, OKE cluster, DNS). Cilium/Hubble, cert-manager, and Kubernetes manifests handle everything running inside the cluster.
+Terraform provisions the OCI infrastructure (VCN, OKE cluster, DNS). Cilium is the CNI. Istio, cert-manager, and Kubernetes manifests handle ingress and everything else running inside the cluster.
 
 ## Cost
 

@@ -50,6 +50,7 @@ data:
       name: Prometheus
       orgId: 1
       type: prometheus
+      uid: PBFA97CFB590B2093
       url: http://prometheus:9090
     - access: proxy
       editable: true
@@ -59,7 +60,7 @@ data:
       name: Loki
       orgId: 1
       type: loki
-      uid: loki
+      uid: P8E80F9AEF21F6940
       url: http://loki:3100
     - access: proxy
       editable: true
@@ -73,11 +74,20 @@ data:
       orgId: 1
       type: jaeger
       uid: jaeger
-      # Jaeger query is configured with base_path: /jaeger
-      url: http://tracing:80/jaeger
+      url: http://tracing:80
   dashboardproviders.yaml: |
     apiVersion: 1
-    providers: []
+    providers:
+      - name: ederbrito
+        orgId: 1
+        folder: ederbrito
+        type: file
+        disableDeletion: false
+        editable: false
+        updateIntervalSeconds: 30
+        options:
+          path: /var/lib/grafana/dashboards
+          foldersFromFilesStructure: false
 ---
 # Source: grafana/templates/service.yaml
 apiVersion: v1
@@ -140,7 +150,7 @@ spec:
       enableServiceLinks: true
       containers:
         - name: grafana
-          image: "docker.io/grafana/grafana:12.0.1"
+          image: "docker.io/grafana/grafana:12.3.1"
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
@@ -161,6 +171,9 @@ spec:
             - name: config
               mountPath: "/etc/grafana/provisioning/dashboards/dashboardproviders.yaml"
               subPath: "dashboardproviders.yaml"
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards
+              readOnly: true
           ports:
             - name: grafana
               containerPort: 3000
@@ -214,3 +227,6 @@ spec:
             name: grafana
         - name: storage
           emptyDir: {}
+        - name: dashboards
+          configMap:
+            name: grafana-dashboards
