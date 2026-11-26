@@ -9,11 +9,10 @@ data "oci_containerengine_cluster_kube_config" "oke_kubeconfig" {
   cluster_id = data.oci_containerengine_clusters.oke_cluster.clusters[0].id
 }
 
-# Cilium creates LB Service as cilium-gateway-<Gateway.metadata.name>.
-data "kubernetes_service_v1" "cilium_gateway" {
+data "kubernetes_service_v1" "istio_ingress" {
   metadata {
-    name      = "cilium-gateway-ederbrito-gateway"
-    namespace = "kube-system"
+    name      = "istio-ingressgateway"
+    namespace = "istio-system"
   }
   provider = kubernetes.oke
 }

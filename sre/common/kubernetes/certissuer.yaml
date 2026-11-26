@@ -10,11 +10,5 @@ spec:
       name: ssl-certificate-letsencrypt-account-key
     solvers:
       - http01:
-          gatewayHTTPRoute:
-            parentRefs:
-              - name: ederbrito-gateway
-                namespace: kube-system
-                sectionName: http
-              - name: ederbrito-gateway
-                namespace: kube-system
-                sectionName: http-apex
+          ingress:
+            class: istio

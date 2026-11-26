@@ -291,7 +291,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: loki
-          image: docker.io/grafana/loki:3.6.3
+          image: docker.io/grafana/loki:3.6.20
           imagePullPolicy: IfNotPresent
           args:
             - -config.file=/etc/loki/config/config.yaml
@@ -335,7 +335,7 @@ spec:
           resources:
             {}
         - name: loki-sc-rules
-          image: docker.io/kiwigrid/k8s-sidecar:1.30.9
+          image: docker.io/kiwigrid/k8s-sidecar:2.14.3
           imagePullPolicy: IfNotPresent
           env:
             - name: METHOD

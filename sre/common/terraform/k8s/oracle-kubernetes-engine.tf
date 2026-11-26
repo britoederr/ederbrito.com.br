@@ -8,7 +8,7 @@ resource "oci_containerengine_cluster" "oke_cluster" {
 
   type = "BASIC_CLUSTER"
 
-  # Flannel at create; CI replaces with exclusive Cilium + Hubble.
+  # Flannel at create; CI replaces it with Cilium as the CNI. Ingress is Istio.
   cluster_pod_network_options {
     cni_type = "FLANNEL_OVERLAY"
   }

@@ -1,7 +1,7 @@
 ---
 title: "Personal Site on Always-Free Kubernetes (OCI + Cilium + Full Observability)"
 publishedAt: "2025-04-01"
-summary: "Designed and operated my own personal portfolio site on a production-grade, always-free Kubernetes cluster on Oracle Cloud, with Cilium/Hubble networking, Gateway API ingress, TLS via cert-manager, and a full observability stack (Prometheus, Grafana, Loki, Jaeger, Hubble), all automated with Terraform and GitHub Actions."
+summary: "Designed and operated my own personal portfolio site on a production-grade, always-free Kubernetes cluster on Oracle Cloud, with Cilium networking, Istio ingress, TLS via cert-manager, and a full observability stack (Prometheus, Grafana, Loki, Jaeger, Kiali), all automated with Terraform and GitHub Actions."
 images:
   - "/images/projects/project-01/ederbrito-portfolio-01.png"
   - "/images/projects/project-01/ederbrito-portfolio-02.png"
@@ -23,10 +23,10 @@ The platform runs on **Oracle Kubernetes Engine (OKE)** using two `VM.Standard.A
 
 Traffic flows:
 
-1. DNS (`ederbrito.com.br` + subdomains) → OCI Load Balancer (Cilium Gateway)
-2. Gateway API `Gateway` → `HTTPRoute` → application / observability Services
-3. TLS terminated at the gateway via cert-manager + Let's Encrypt (HTTP-01)
-4. Observability subdomains (`grafana.`, `prometheus.`, `jaeger.`, `loki.`, `hubble.`) served through the same gateway
+1. DNS (`ederbrito.com.br` + subdomains) → OCI Load Balancer (Istio ingress gateway)
+2. Istio `Gateway` → `VirtualService` → application / observability Services
+3. TLS terminated at the ingress gateway via cert-manager + Let's Encrypt (HTTP-01)
+4. Observability subdomains (`grafana.`, `prometheus.`, `jaeger.`, `loki.`, `kiali.`) served through the Istio ingress gateway
 
 ---
 
@@ -36,7 +36,7 @@ All infrastructure is provisioned with **Terraform**:
 
 - **VCN and networking** — subnets, NAT gateway, service gateway, security lists
 - **OKE cluster** — BASIC cluster with ARM node pool; Flannel at create, then exclusive Cilium via Helm
-- **OCI DNS** — A records for apex and all observability subdomains, dynamically resolved from the Cilium Gateway load balancer IP using Terraform's Kubernetes provider
+- **OCI DNS** — A records for apex and all observability subdomains, dynamically resolved from the Istio ingress load balancer IP using Terraform's Kubernetes provider
 
 Remote state is stored in **OCI Object Storage**. The two Terraform stacks (cluster and DNS) are decoupled so DNS can be updated independently without touching the cluster.
 
@@ -47,9 +47,9 @@ Remote state is stored in **OCI Object Storage**. The two Terraform stacks (clus
 A **GitHub Actions** pipeline automates the full provisioning lifecycle:
 
 1. `terraform plan` and `terraform apply` for the OKE cluster and networking (apply on push only)
-2. OCI CLI authenticates, fetches kubeconfig, and bootstraps Helm releases (Cilium + Hubble, cert-manager)
-3. `kubectl apply` deploys the Kubernetes manifests (Gateway, Certificate, issuer, observability stack)
-4. A second Terraform run applies DNS changes, reading the live gateway LB IP from the cluster
+2. OCI CLI authenticates, fetches kubeconfig, and bootstraps Helm releases (Cilium CNI, Istio, cert-manager)
+3. `kubectl apply` deploys the Kubernetes manifests (Istio Gateway, VirtualServices, Certificate, issuer, observability stack)
+4. A second Terraform run applies DNS changes, reading the live ingress LB IP from the cluster
 
 The pipeline triggers on changes under `sre/common/terraform/` and `sre/common/kubernetes/` so infrastructure PRs can be reviewed and validated before apply.
 
@@ -63,7 +63,7 @@ The cluster runs a full observability suite, accessible via dedicated subdomains
 - **Grafana** — Dashboards and visualization
 - **Loki** — Log aggregation
 - **Jaeger** — Distributed tracing
-- **Hubble** — Cilium network flow visibility (UI + Relay)
+- **Kiali** — Istio service mesh UI
 
 This mirrors the production observability patterns I design and operate at Avalara, applied here at a personal scale.
 
@@ -73,7 +73,7 @@ This mirrors the production observability patterns I design and operate at Avala
 
 **Why OCI Always Free?** The `VM.Standard.A1.Flex` shape provides enough compute for a real multi-node cluster without cost. This removes any incentive to cut corners on the platform layer — the goal was a legitimate production setup, not a dev sandbox.
 
-**Why Cilium instead of Istio?** For a single-service site, a full service mesh was mostly an expensive ingress layer. Cilium provides eBPF networking, NetworkPolicy, and Hubble for L3/L4/L7 flow visibility; Gateway API covers ingress and TLS without sidecar overhead on Always Free nodes.
+**Why Cilium and Istio?** Cilium is the CNI (eBPF networking and NetworkPolicy). Istio is the ingress and the mesh UI (Kiali). Gateway API and Hubble were tried and removed.
 
 **Why Terraform + GitHub Actions instead of a managed PaaS?** Full control over the infrastructure lifecycle, a real GitOps-style workflow, and a meaningful artifact to demonstrate end-to-end IaC ownership.
 
@@ -82,11 +82,11 @@ This mirrors the production observability patterns I design and operate at Avala
 ## Technologies Used
 
 - **Cloud:** Oracle Cloud Infrastructure (OCI), Always Free tier
-- **Kubernetes:** OKE (BASIC), ARM nodes (`VM.Standard.A1.Flex`), v1.36
-- **CNI / networking:** Cilium + Hubble (Helm)
-- **Ingress:** Cilium Gateway API
-- **TLS:** cert-manager v1.19.2, Let's Encrypt
+- **Kubernetes:** OKE (BASIC), ARM nodes (`VM.Standard.A1.Flex`), v1.37.1
+- **CNI / networking:** Cilium (Helm), Hubble off
+- **Ingress:** Istio 1.30 ingress gateway + VirtualServices + Kiali
+- **TLS:** cert-manager v1.21.3, Let's Encrypt
 - **IaC:** Terraform (OCI + Kubernetes providers), OCI Object Storage backend
 - **CI/CD:** GitHub Actions
-- **Observability:** Prometheus, Grafana, Loki, Jaeger, Hubble
+- **Observability:** Prometheus, Grafana, Loki, Jaeger, Kiali
 - **DNS:** OCI DNS (managed via Terraform)

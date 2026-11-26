@@ -98,7 +98,7 @@ Manifests are in [`sre/frontend/`](../../sre/frontend/):
 | `namespace.yaml` | `ederbrito` namespace |
 | `deployment.yaml` | Single replica; image tag overwritten by CI via `kubectl set image` |
 | `service.yaml` | ClusterIP service on port 3000 |
-| `httproute.yaml` | Gateway API HTTPRoute routing `ederbrito.com.br` to the frontend |
+| `virtualservice.yaml` | Istio VirtualService routing `ederbrito.com.br` to the frontend |
 
 Apply all manifests:
 

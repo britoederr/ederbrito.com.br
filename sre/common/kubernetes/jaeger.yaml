@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: jaeger
-          image: "docker.io/jaegertracing/jaeger:2.14.0"
+          image: "docker.io/jaegertracing/jaeger:2.23.0"
           args:
             - "--config"
             - "/jaeger-configuration/config.yaml"
@@ -106,7 +106,6 @@ data:
 
     extensions:
       jaeger_query:
-        base_path: /jaeger
         storage:
           traces: badger_storage
 
