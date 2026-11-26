@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@mdx-js/loader": "^3.1.0",
-    "@next/mdx": "^16.0.10",
+    "@next/mdx": "16.4.6",
     "@once-ui-system/core": "latest",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/auto-instrumentations-node": "^0.56.0",
@@ -26,7 +26,7 @@
     "cookie": "^1.0.2",
     "gray-matter": "^4.0.3",
     "lint-staged": "^16.1.5",
-    "next": "^16.0.10",
+    "next": "16.4.6",
     "next-mdx-remote": "^6.0.0",
     "pino": "^9.6.0",
     "prom-client": "^15.1.3",
